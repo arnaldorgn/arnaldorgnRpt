@@ -164,7 +164,7 @@ namespace Busca_LegalDAO
                         this.objComando.Parameters.Add("pIdPai", idPai);
                         this.objComando.Parameters.Add("pIdUrl", dadosEmenta.IdUrl);
                         this.objComando.Parameters.Add("pEspecie", objListInsert.Find(x => x.Tipo == 3).Especie);
-                        this.objComando.Parameters.Add("pUf", "Fed");
+                        this.objComando.Parameters.Add("pUf", objListInsert.Find(x => x.Tipo == 3).Escopo);
                         this.objComando.Parameters.Add("pDtAtualizacao", DateTime.Now.ToString("yyyy-MM-dd"));
                         this.objComando.Parameters.Add("pMetadado", objListInsert.Find(x => x.Tipo == 3).Metadado);
                         this.objComando.Parameters.Add("pHash", itemEmenta.Hash);
@@ -322,6 +322,77 @@ namespace Busca_LegalDAO
         }
 
         #endregion
+
+        public List<dynamic> ObterDocsCorrecao()
+        {
+            List<dynamic> listaRetorno = new List<dynamic>();
+
+            try
+            {
+                dynamic itemListaDocs;
+
+
+                this.objComando.Connection = this.objConection;
+
+                this.objComando.CommandTimeout = 0;
+                this.objComando.CommandType = System.Data.CommandType.Text;
+                this.objComando.CommandText = "select id, data_publicacao as texto from conteudo where id_url in (select id from url where id_fonte = 1) and trim(data_publicacao) <> '' and data_publicacao is not null and dt_publicacao is null";
+
+                this.objConection.Open();
+
+                using (NpgsqlDataReader dataReaderObj = this.objComando.ExecuteReader())
+                {
+                    while (dataReaderObj.Read())
+                    {
+                        itemListaDocs = new ExpandoObject();
+
+                        itemListaDocs.Id = (int)dataReaderObj["id"];
+                        itemListaDocs.Texto = dataReaderObj["texto"].ToString();
+
+                        listaRetorno.Add(itemListaDocs);
+                    }
+                }
+            }
+            catch (Exception)
+            {
+            }
+            finally
+            {
+                this.objConection.Dispose();
+            }
+
+            return listaRetorno;
+        }
+
+        public void AtualizarDocsCorrecao(List<dynamic> listUpdate)
+        {
+            try
+            {
+                this.objComando.Connection = this.objConection;
+                this.objConection.Open();
+
+                foreach (var item in listUpdate)
+                {
+                    this.objComando.Parameters.Clear();
+
+                    this.objComando.Parameters.AddWithValue("@data", item.DataFinal);
+                    this.objComando.Parameters.AddWithValue("@id", item.Id);
+
+                    this.objComando.CommandTimeout = 0;
+                    this.objComando.CommandType = System.Data.CommandType.Text;
+                    this.objComando.CommandText = "update conteudo set dt_publicacao = @data where id = @id";
+
+                    this.objComando.ExecuteNonQuery();
+                }
+            }
+            catch (Exception ex)
+            {
+            }
+            finally
+            {
+                this.objConection.Dispose();
+            }
+        }
     }
 
     public class ArquivoUpload
