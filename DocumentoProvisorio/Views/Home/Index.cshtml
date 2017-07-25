@@ -1,0 +1,49 @@
+﻿@{
+    ViewBag.Title = "Cadastro Provisório";
+}
+<script type="text/javascript">
+    function ProcessarArquivos() {
+        document.forms[0].action = '@Url.Action("ProcessarArquivosDocProvisorio", "Home")' + '?path=@ViewBag.Path';
+        document.forms[0].submit();
+    }
+</script>
+<div style="display:inline-block">
+    <img src="~/Content/themes/base/images/logo.png" />
+    <span><strong>• Cadastro Provisório de Documento •</strong></span>
+</div>
+<div id="divAll"    >
+    <fieldset style="width: 97%; margin-left: 5px">
+        <legend>Arquivo(s)</legend>
+        <br />
+        <form id="formFile" method="post" enctype="multipart/form-data" action="@Url.Action("Index", "Home")">
+            <label for="idArquivo">• Selecione o Arquivo (.zip):</label>&nbsp;<input type="file" id="idArquivo" name="idArquivo" style="height:24px" />&nbsp;<input type="submit" id="btnUpload" value="Upload" />
+        </form>
+        <br />
+        <address style="font-size:10px">• Fazer o upload do arquivo compactado com a extensão .zip</address>
+        <address style="font-size:10px">• A planilha com as informação dos meta-dados com extensão .xls ou .xlsx</address>
+    </fieldset>
+
+    <fieldset style="width: 97%; margin-left: 5px">
+        <legend>Listagem Arquivos</legend>
+        @if (ViewBag.ListItens != null)
+        {
+            <br />
+
+            <table width="50%">
+                <thead>
+                    <tr><th align="left">Nome</th><th>Opções</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in (List<string>)ViewBag.ListItens)
+                    {
+                        <tr>
+                            <td align="left">@item.Split('|')[0]</td>
+                            <td align="center"><a href="@Url.Content(item.Split('|')[1])" target="_blank">Visualizar</a></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </fieldset>
+    <input type="button" value="Processar Arquivos" onclick="if(confirm('Confirma o Processamento dos Arquivos?')) ProcessarArquivos();" style="margin-left: 5px" />
+</div>

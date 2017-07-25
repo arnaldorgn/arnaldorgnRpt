@@ -1,7 +1,12 @@
-﻿using Npgsql;
+﻿using iTextSharp.text.pdf;
+using iTextSharp.text.pdf.parser;
+using Npgsql;
 using System;
 using System.Collections.Generic;
+using System.Data;
+using System.Data.OleDb;
 using System.Dynamic;
+using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text;
@@ -22,6 +27,12 @@ namespace Busca_LegalDAO
             this.objComando = new NpgsqlCommand();
 
             this.tipoProcessamento = System.Configuration.ConfigurationSettings.AppSettings["modProc"].ToString();
+        }
+
+        public BuscaLegalDao(string webTipo)
+        {
+            this.objConection = new NpgsqlConnection(System.Configuration.ConfigurationSettings.AppSettings["strConn"].ToString());
+            this.objComando = new NpgsqlCommand();
         }
 
         #region "Métodos Principais"
@@ -392,6 +403,166 @@ namespace Busca_LegalDAO
             {
                 this.objConection.Dispose();
             }
+        }
+
+        public void ProcessarArquivosDocProvisorio(string path)
+        {
+            OleDbConnection _olecon = null;
+            OleDbCommand _oleCmd = null;
+
+            path = path.Replace("|", @"\");
+
+            var listItensDirectory = Directory.GetFiles(path).ToList();
+
+            string _Arquivo = listItensDirectory.Find(x => x.ToLower().Contains(".xls") || x.ToLower().Contains(".xlsx"));
+            string _StringConexao = String.Format(@"Provider=Microsoft.ACE.OLEDB.12.0;Data Source={0};Extended Properties='Excel 12.0 Xml;HDR=YES;ReadOnly=True';", _Arquivo);
+            string _Consulta = string.Empty;
+
+            List<dynamic> listItens = new List<dynamic>();
+
+            try
+            {
+                _olecon = new OleDbConnection(_StringConexao);
+                _olecon.Open();
+
+                _oleCmd = new OleDbCommand();
+                _oleCmd.Connection = _olecon;
+                _oleCmd.CommandType = CommandType.Text;
+
+                _oleCmd.CommandText = "SELECT * FROM [Planilha1$]";
+                OleDbDataReader reader = _oleCmd.ExecuteReader();
+
+                dynamic objItem;
+
+                while (reader.Read())
+                {
+                    objItem = new ExpandoObject();
+
+                    if (!reader.GetValue(0).ToString().Equals(string.Empty))
+                    {
+                        objItem.Uf = reader.GetValue(0);
+                        objItem.Especie = reader.GetString(1);
+                        objItem.Orgao = reader.GetString(2);
+                        objItem.Numero = reader.GetValue(3);
+                        objItem.Data_publicacao = reader.GetValue(4);
+                        objItem.Tipo_documento = reader.GetString(5);
+                        objItem.Pdf = reader.GetString(6);
+
+                        listItens.Add(objItem);
+                    }
+                    else
+                        break;
+                }
+
+                reader.Close();
+
+                //Lendo o PDF de cada item da planilha...
+                foreach (dynamic itensList in listItens)
+                {
+                    string caminhoPdf = path + @"\" + (itensList.Pdf.ToLower().Contains(".pdf") ? itensList.Pdf : itensList.Pdf + ".pdf");
+                    itensList.conteudoPdf = LeArquivo(caminhoPdf);
+                }
+            }
+            catch (Exception)
+            {
+            }
+            finally
+            {
+                if (_oleCmd != null)
+                    _oleCmd.Dispose();
+
+                _oleCmd = null;
+
+                if (_olecon != null)
+                {
+                    if (_olecon.State == ConnectionState.Open)
+                        _olecon.Close();
+
+                    _olecon.Dispose();
+                }
+                _olecon = null;
+
+                Directory.Delete(path, true);
+            }
+
+            try
+            {
+                this.objComando.Connection = this.objConection;
+                this.objConection.Open();
+
+                foreach (var itensList in listItens)
+                {
+                    this.objComando.Parameters.Clear();
+
+                    this.objComando.Parameters.AddWithValue("@pTitulo", string.Format("{0} Nº {1} {2}", itensList.Especie, itensList.Numero, itensList.Orgao));
+                    this.objComando.Parameters.AddWithValue("@pMetaDados", "{" + string.Format("\"UF\":\"{0}\"", itensList.Uf) + "}");
+                    this.objComando.Parameters.AddWithValue("@pStAtivo", "1");
+                    this.objComando.Parameters.AddWithValue("@pUf", itensList.Uf);
+                    this.objComando.Parameters.AddWithValue("@pEspecie", itensList.Especie);
+                    this.objComando.Parameters.AddWithValue("@pOrgao", itensList.Orgao);
+                    this.objComando.Parameters.AddWithValue("@pNumero", itensList.Numero);
+                    this.objComando.Parameters.AddWithValue("@pDtPublicacao", itensList.Data_publicacao.ToString("yyyy-MM-dd"));
+                    this.objComando.Parameters.AddWithValue("@pTipoDocumento", itensList.Tipo_documento);
+                    this.objComando.Parameters.AddWithValue("@pConteudoPdf", itensList.conteudoPdf);
+
+                    this.objComando.CommandTimeout = 0;
+                    this.objComando.CommandType = System.Data.CommandType.Text;
+                    this.objComando.CommandText = @"insert into conteudo_provisorio (titulo
+                                                          ,texto
+                                                          ,data_publicacao
+                                                          ,especie
+                                                          ,numero
+                                                          ,uf
+                                                          ,sigla_orgao
+                                                          ,metadados
+                                                          ,dt_publicacao
+                                                          ,tipo_documento
+                                                          ,st_ativo)
+                                                    select @pTitulo, @pConteudoPdf, @pDtPublicacao, @pEspecie, @pNumero, @pUf, @pOrgao, @pMetaDados, @pDtPublicacao, @pTipoDocumento, @pStAtivo
+                                                    where not exists (select 1 from conteudo_provisorio where especie = @pEspecie and numero = @pNumero and uf = @pUf and sigla_orgao = @pOrgao and dt_publicacao = @pDtPublicacao and tipo_documento = @pTipoDocumento and st_ativo = @pStAtivo)";
+
+                    this.objComando.ExecuteNonQuery();
+                }
+            }
+            catch (Exception)
+            {
+            }
+            finally
+            {
+                this.objConection.Close();
+                this.objConection.Dispose();
+            }
+        }
+
+        public string LeArquivo(string fileName)
+        {
+            var text = new StringBuilder();
+
+            // The PdfReader object implements IDisposable.Dispose, so you can
+            // wrap it in the using keyword to automatically dispose of it
+            using (var pdfReader = new PdfReader(fileName))
+            {
+                // Loop through each page of the document
+                for (var page = 1; page <= pdfReader.NumberOfPages; page++)
+                {
+                    ITextExtractionStrategy strategy = new SimpleTextExtractionStrategy();
+
+                    var currentText = PdfTextExtractor.GetTextFromPage(
+                        pdfReader,
+                        page,
+                        strategy);
+
+                    currentText =
+                        Encoding.UTF8.GetString(Encoding.Convert(
+                            Encoding.Default,
+                            Encoding.UTF8,
+                            Encoding.Default.GetBytes(currentText)));
+
+                    text.Append(currentText);
+                }
+            }
+
+            return text.ToString();
         }
     }
 

@@ -7116,21 +7116,12 @@ namespace Systax_BuscaLegal
 
                 string urlTratada = string.Empty;
 
-                int inferno = 0;
-
                 foreach (var nivel1_item in listaUrl)
                 {
                     foreach (var itemLista_Nivel2 in nivel1_item.Lista_Nivel2)
                     {
                         try
                         {
-                            if (inferno < 1930)
-                            {
-                                inferno++;
-                                continue;
-                            }
-
-                            inferno++;
 
                             Thread.Sleep(2000);
 
@@ -10000,63 +9991,62 @@ namespace Systax_BuscaLegal
 
                 webBrowser1.DocumentCompleted += new WebBrowserDocumentCompletedEventHandler(webBrowser1_DocumentCompletedSefazRo);
 
-/*              string htmlPage = string.Empty;
+                /*              string htmlPage = string.Empty;
 
-                List<string> linksSefazPi = new List<string>() { "http://www.sefin.ro.gov.br/lista.jsp?tipo=lei&formato=108&page={0}" };
+                                List<string> linksSefazPi = new List<string>() { "http://www.sefin.ro.gov.br/lista.jsp?tipo=lei&formato=108&page={0}" };
 
-                foreach (var itemPi in linksSefazPi)
-                {
-                    try
-                    {
-                        int paginacao = 1;
-
-                        while (true)
-                        {
-                            objUrll = new ExpandoObject();
-
-                            objUrll.Indexacao = "Secretaria do estado da Fazendo da Rondônia";
-                            objUrll.Url = itemPi;
-
-                            objUrll.Lista_Nivel2 = new List<dynamic>();
-
-                            List<string> listaUrlIndex;
-
-                            string htmlListUrl = getHtmlPaginaByGet(string.Format(itemPi, paginacao.ToString()), "default").Replace("\"", string.Empty).Replace("\n", " ").Replace("\t", " ").Replace("\r", " ");
-
-                            if (!htmlListUrl.Contains("<span class=s13 gray"))
-                                break;
-                            else
-                                paginacao++;
-
-                            htmlListUrl = htmlListUrl.Substring(htmlListUrl.IndexOf("")).Substring(0, htmlListUrl.Substring(htmlListUrl.IndexOf("")).IndexOf(""));
-
-                            listaUrlIndex = Regex.Split(htmlListUrl, "href=").ToList();
-                            listaUrlIndex.RemoveAt(0);
-
-                            listaUrlIndex = listaUrlIndex.Select(x => itemPi.Substring(0, itemPi.IndexOf(".br/") + 3) + x.Substring(0, x.IndexOf(" "))).ToList();
-                            listaUrlIndex = listaUrlIndex.Select(x => x.Substring(0, (x + ">").IndexOf(">"))).ToList();
-
-                            foreach (var itemUrlInt in listaUrlIndex)
-                            {
-                                try
+                                foreach (var itemPi in linksSefazPi)
                                 {
-                                    objItenUrl = new ExpandoObject();
-                                    objItenUrl.Url = itemUrlInt;
-                                    objUrll.Lista_Nivel2.Add(objItenUrl);
-                                }
-                                catch (Exception)
-                                {
-                                }
-                            }
+                                    try
+                                    {
+                                        int paginacao = 1;
 
-                            new BuscaLegalDao().AtualizarFontes(new List<dynamic>() { objUrll });
-                        }
-                    }
-                    catch (Exception)
-                    {
-                    }
-                }
- */
+                                        while (true)
+                                        {
+                                            objUrll = new ExpandoObject();
+
+                                            objUrll.Indexacao = "Secretaria do estado da Fazendo da Rondônia";
+                                            objUrll.Url = itemPi;
+
+                                            objUrll.Lista_Nivel2 = new List<dynamic>();
+
+                                            List<string> listaUrlIndex;
+
+                                            string htmlListUrl = getHtmlPaginaByGet(string.Format(itemPi, paginacao.ToString()), "default").Replace("\"", string.Empty).Replace("\n", " ").Replace("\t", " ").Replace("\r", " ");
+
+                                            if (!htmlListUrl.Contains("<span class=s13 gray"))
+                                                break;
+                                            else
+                                                paginacao++;
+
+                                            htmlListUrl = htmlListUrl.Substring(htmlListUrl.IndexOf("")).Substring(0, htmlListUrl.Substring(htmlListUrl.IndexOf("")).IndexOf(""));
+
+                                            listaUrlIndex = Regex.Split(htmlListUrl, "href=").ToList();
+                                            listaUrlIndex.RemoveAt(0);
+
+                                            listaUrlIndex = listaUrlIndex.Select(x => itemPi.Substring(0, itemPi.IndexOf(".br/") + 3) + x.Substring(0, x.IndexOf(" "))).ToList();
+                                            listaUrlIndex = listaUrlIndex.Select(x => x.Substring(0, (x + ">").IndexOf(">"))).ToList();
+
+                                            foreach (var itemUrlInt in listaUrlIndex)
+                                            {
+                                                try
+                                                {
+                                                    objItenUrl = new ExpandoObject();
+                                                    objItenUrl.Url = itemUrlInt;
+                                                    objUrll.Lista_Nivel2.Add(objItenUrl);
+                                                }
+                                                catch (Exception)
+                                                {
+                                                }
+                                            }
+
+                                            new BuscaLegalDao().AtualizarFontes(new List<dynamic>() { objUrll });
+                                        }
+                                    }
+                                    catch (Exception)
+                                    {
+                                    }
+                                } */
             }
 
             #endregion

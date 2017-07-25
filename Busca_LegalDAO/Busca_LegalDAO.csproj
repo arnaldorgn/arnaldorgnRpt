@@ -30,6 +30,9 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
+    <Reference Include="itextsharp">
+      <HintPath>..\..\..\..\..\Source\Workspaces\Gestao2\Gestao\SystaxGestao\Lib\itextsharp.dll</HintPath>
+    </Reference>
     <Reference Include="Mono.Security">
       <HintPath>..\Systax_BuscaLegal\Lib\Mono.Security.dll</HintPath>
     </Reference>
