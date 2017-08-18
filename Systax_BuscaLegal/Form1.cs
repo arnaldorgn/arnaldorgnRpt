@@ -6,6 +6,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
+using System.Diagnostics;
 using System.Drawing;
 using System.Dynamic;
 using System.IO;
@@ -521,52 +522,122 @@ namespace Systax_BuscaLegal
                 }
                 while (webBrowser1.ReadyState == WebBrowserReadyState.Loading);
 
-                string htmlUrl = webBrowser1.DocumentText.Replace("\"", string.Empty).Replace("\t", " ").Replace("\n", " ").Replace("\r", " ");
+                List<string> listUrls = new List<string>();
 
-                List<string> listIndicadores = new List<string>();
+                HtmlElementCollection col = webBrowser1.Document.GetElementsByTagName("div");
 
-                listIndicadores.Add(htmlUrl.ToLower().IndexOf("<p>download de constituição estadual atualizada").ToString());
-                listIndicadores.Add(htmlUrl.ToLower().IndexOf("<div class=textoconteudo").ToString());
-
-                listIndicadores.RemoveAll(x => x.Equals("-1"));
-                listIndicadores = listIndicadores.OrderBy(x => x).ToList();
-
-                if (listIndicadores.Count == 0)
-                    listIndicadores = null;
-
-                string linksPdf = htmlUrl.Substring(int.Parse(listIndicadores[0]));
-
-                var listUrls = Regex.Split(linksPdf, "href=").ToList();
-
-                listUrls.RemoveAt(0);
-                //listUrls.RemoveAll(x => !x.Contains(".pdf"));
-
-                dynamic objUrll = new ExpandoObject();
-
-                objUrll.Indexacao = "Secretaria do Estado da Fazendo do Acre";
-                objUrll.Url = "";
-
-                objUrll.Lista_Nivel2 = new List<dynamic>();
-
-                //Pegando os itens que j são .PDF
-                listUrls.FindAll(x => x.Substring(0, x.Trim().IndexOf(" ")).Contains(".pdf")).ToList().ForEach(
-                delegate(string itemX)
+                foreach (HtmlElement element in col)
                 {
-                    dynamic objItenUrl = new ExpandoObject();
+                    string cls = element.GetAttribute("className");
 
-                    objItenUrl.Url = "";
-                    objUrll.Lista_Nivel2.Add(objItenUrl);
-                });
+                    if (cls.Equals("siteConteudo"))
+                    {
+                        if (element.InnerHtml.Contains("<A href="))
+                        {
+                            listUrls = Regex.Split(element.InnerHtml.Replace("\"", string.Empty), "<A href=").ToList();
+                            listUrls.RemoveAt(0);
 
-                listUrls.FindAll(x => !x.Substring(0, x.Trim().IndexOf(" ")).Contains(".pdf") && "?/".Contains(x.Trim().Substring(0, 1))).ToList().ForEach(
-                delegate(string itemX)
+                            listUrls = listUrls.Select(x => x.Substring(0, x.IndexOf(">"))).ToList();
+                        }
+                    }
+                }
+
+                if (listUrls.Count > 0)
                 {
+                    dynamic objUrll = new ExpandoObject();
 
-                });
+                    objUrll.Indexacao = "Secretaria do Estado da Fazendo do Acre";
+                    objUrll.Url = webBrowser1.Url.AbsoluteUri.ToString();
 
-                new BuscaLegalDao().AtualizarFontes(new List<dynamic>() { objUrll });
+                    objUrll.Lista_Nivel2 = new List<dynamic>();
 
-                Thread.Sleep(2000);
+                    //Pegando os itens que já são .PDF
+                    listUrls.FindAll(x => x.Contains(".pdf")).ToList().ForEach(
+                    delegate(string itemX)
+                    {
+                        dynamic objItenUrl = new ExpandoObject();
+
+                        objItenUrl.Url = "";
+                        objUrll.Lista_Nivel2.Add(objItenUrl);
+                    });
+
+                    string urlXxx = webBrowser1.Url.AbsoluteUri.ToString();
+
+                    listUrls.FindAll(x => !x.Contains(".pdf") && "?/".Contains(x.Trim().Substring(0, 1))).ToList().ForEach(
+                    delegate(string itemX)
+                    {
+                        var webBrowser2 = new WebBrowser();
+
+                        webBrowser2.ScriptErrorsSuppressed = true;
+                        webBrowser2.Navigate(urlXxx + itemX.Replace("amp;", string.Empty));
+                        //webBrowser2.DocumentCompleted += new WebBrowserDocumentCompletedEventHandler(webBrowser1_DocumentCompleted_SefazAcSaveLink);
+                    });
+
+                    if (objUrll.Lista_Nivel2.Count > 0)
+                        new BuscaLegalDao().AtualizarFontes(new List<dynamic>() { objUrll });
+
+                    Thread.Sleep(2000);
+
+                    itemVez++;
+                    ProcessarBusca();
+                }
+            }
+            catch (Exception ex)
+            {
+            }
+        }
+
+        private void webBrowser1_DocumentCompleted_SefazAcSaveLink(object sender, WebBrowserDocumentCompletedEventArgs e)
+        {
+            try
+            {
+                do
+                {
+                    // do nothing while we wait for the page to load
+                }
+                while ((((WebBrowser)sender)).ReadyState == WebBrowserReadyState.Loading);
+
+                List<string> listurls = new List<string>();
+
+                HtmlElementCollection col = ((WebBrowser)sender).Document.GetElementsByTagName("div");
+
+                foreach (HtmlElement element in col)
+                {
+                    string cls = element.GetAttribute("classname");
+
+                    if (cls.Equals("siteconteudo"))
+                    {
+                        if (element.InnerHtml.Contains("<a href="))
+                        {
+                            listurls = Regex.Split(element.InnerHtml.Replace("\"", string.Empty), "<a href=").ToList();
+                            listurls.RemoveAt(0);
+
+                            listurls = listurls.Select(x => x.Substring(0, x.IndexOf(">"))).ToList();
+                        }
+                    }
+                }
+
+                if (listurls.Count > 0)
+                {
+                    dynamic objurll = new ExpandoObject();
+
+                    objurll.indexacao = "secretaria do estado da fazendo do acre";
+                    objurll.url = ((WebBrowser)sender).Url.AbsoluteUri.ToString();
+
+                    objurll.lista_nivel2 = new List<dynamic>();
+
+                    //pegando os itens que já são .pdf
+                    listurls.FindAll(x => x.Contains(".pdf")).ToList().ForEach(
+                    delegate(string itemx)
+                    {
+                        dynamic objitenurl = new ExpandoObject();
+
+                        objitenurl.url = "";
+                        objurll.lista_nivel2.add(objitenurl);
+                    });
+
+                    new BuscaLegalDao().AtualizarFontes(new List<dynamic>() { objurll });
+                }
             }
             catch (Exception ex)
             {
@@ -690,6 +761,57 @@ namespace Systax_BuscaLegal
                 }
                 else if (clicar)
                     break;
+            }
+        }
+
+        private void Wb_DocumentCompleted_SefazRJ(object sender, WebBrowserDocumentCompletedEventArgs e)
+        {
+            string urlError = string.Empty;
+
+            try
+            {
+                do
+                {
+                    // Do nothing while we wait for the page to load
+                }
+                while (((WebBrowser)sender).ReadyState == WebBrowserReadyState.Loading);
+
+                WebBrowser webBro = (WebBrowser)sender;
+
+                urlError = webBro.Url.AbsoluteUri.ToString();
+
+                string textoPagina = webBro.DocumentText.Replace("\"", string.Empty).Replace("\n", " ").Replace("\r", " ").Replace("\t", " ");
+
+                textoPagina = textoPagina.Substring(textoPagina.ToLower().IndexOf("<div id=conteudosefaz")).Substring(0, textoPagina.Substring(textoPagina.ToLower().IndexOf("<div id=conteudosefaz")).ToLower().IndexOf("textosubir"));
+
+                var listFinal = Regex.Split(textoPagina, "href=").ToList().Select(x => (x.Trim().IndexOf(" ") < x.Trim().IndexOf(">") ? x.Substring(0, x.IndexOf(" ")) : x.Substring(0, x.IndexOf(">")))).ToList();
+
+                listFinal.RemoveAt(0);
+                listFinal.RemoveAt(listFinal.Count - 1);
+                listFinal.RemoveAll(x => x.Contains(".css"));
+
+                dynamic objUrll = new ExpandoObject();
+
+                objUrll.Indexacao = "Secretaria do estado da fazenda de RJ";
+                objUrll.Url = webBro.Url.AbsoluteUri;
+                objUrll.Lista_Nivel2 = new List<dynamic>();
+
+                listFinal.ForEach(delegate(string itemDado)
+                {
+                    dynamic objItenUrl = new ExpandoObject();
+
+                    objItenUrl.Url = (itemDado.Contains(".br") ? itemDado : webBro.Url.AbsoluteUri + itemDado);
+                    objUrll.Lista_Nivel2.Add(objItenUrl);
+                });
+
+                if (listFinal.Count > 0)
+                    new BuscaLegalDao().AtualizarFontes(new List<dynamic>() { objUrll });
+
+                Debug.Print("P2 - " + webBro.Url.AbsoluteUri);
+            }
+            catch (Exception)
+            {
+                Debug.Print("P2E- " + urlError);
             }
         }
 
@@ -5819,40 +5941,46 @@ namespace Systax_BuscaLegal
 
             #region "Captura URL's"
 
-            if (modoProcessamento.Equals("f") || modoProcessamento.Equals("u1"))
+            if (modoProcessamento.Equals("f") || modoProcessamento.Equals("u"))
             {
 
                 var listSefazRJ = new List<string>() { /*"http://alerjln1.alerj.rj.gov.br/constest.nsf/indiceint?openform|N"
                                                       ,"http://alerjln1.alerj.rj.gov.br/contlei.nsf/leicompint?openform|N"
-                                                      ,"http://alerjln1.alerj.rj.gov.br/contlei.nsf/leiordint?openform|N"*/
-                                                       "http://www.fazenda.rj.gov.br/sefaz/faces/menu_structure/legislacao/legislacao-estadual-navigation/coluna1/menu_legislacao_decretos/Decretos-Tributaria|s"
+                                                      ,"http://alerjln1.alerj.rj.gov.br/contlei.nsf/leiordint?openform|N"
+                                                      ,*/"http://www.fazenda.rj.gov.br/sefaz/faces/menu_structure/legislacao/legislacao-estadual-navigation/coluna1/menu_legislacao_decretos/Decretos-Tributaria|s"
                                                       ,"http://www.fazenda.rj.gov.br/sefaz/faces/menu_structure/legislacao/legislacao-estadual-navigation/coluna1/menu_legislacao_decretos/Decretos-Financeira|s"
-                                                      ,"http://www.fazenda.rj.gov.br/sefaz/faces/menu_structure/legislacao/legislacao-estadual-navigation/coluna2/RegulamentoDoICMS|s"
+                                                      //Não Processar,"http://www.fazenda.rj.gov.br/sefaz/faces/menu_structure/legislacao/legislacao-estadual-navigation/coluna2/RegulamentoDoICMS|s"
                                                       ,"http://www.fazenda.rj.gov.br/sefaz/faces/menu_structure/legislacao/legislacao-estadual-navigation/coluna2/menu_legislacao_resolucoes/Resolucoes-Financeira|s"
-                                                      ,"http://www.fazenda.rj.gov.br/sefaz/faces/menu_structure/legislacao/legislacao-estadual-navigation/coluna2/menu_legislacao_resolucoes/Resolucoes-Tributaria|s"
                                                       ,"http://www.fazenda.rj.gov.br/sefaz/faces/menu_structure/legislacao/legislacao-estadual-navigation/coluna2/menu_legislacao_resolucoes-conjuntas/ResolucoesConjuntas-Financeira|s"
                                                       ,"http://www.fazenda.rj.gov.br/sefaz/faces/menu_structure/legislacao/legislacao-estadual-navigation/coluna2/menu_legislacao_resolucoes-conjuntas/ResolucoesConjuntas-Tributaria|s"
-                                                      ,"http://www.fazenda.rj.gov.br/sefaz/faces/menu_structure/legislacao/legislacao-estadual-navigation/coluna3/Portarias/Portarias-Administrativa|s"
-                                                      ,"http://www.fazenda.rj.gov.br/sefaz/faces/menu_structure/legislacao/legislacao-estadual-navigation/coluna3/Portarias/Portarias-Financeira|s"
-                                                      ,"http://www.fazenda.rj.gov.br/sefaz/faces/menu_structure/legislacao/legislacao-estadual-navigation/coluna3/Portarias/Portarias-Tributaria|s"
+                                                      //Inicio - Link Pai"http://www.fazenda.rj.gov.br/sefaz/faces/menu_structure/legislacao/legislacao-estadual-navigation/coluna3/Portarias/Portarias-Administrativa"
+                                                      ,"http://www.fazenda.rj.gov.br/sefaz/faces/webcenter/faces/owResource.jspx?z=oracle.webcenter.doclib%21UCMServer%21UCMServer%2523dDocName%253A103748|s"
+                                                      ,"http://www.fazenda.rj.gov.br/sefaz/faces/webcenter/faces/owResource.jspx?z=oracle.webcenter.doclib%21UCMServer%21UCMServer%2523dDocName%253A103998|s"
+                                                      ,"http://www.fazenda.rj.gov.br/sefaz/faces/webcenter/faces/owResource.jspx?z=oracle.webcenter.doclib%21UCMServer%21UCMServer%2523dDocName%253A99973|s"
+                                                      ,"http://www.fazenda.rj.gov.br/sefaz/faces/webcenter/faces/owResource.jspx?z=oracle.webcenter.doclib%21UCMServer%21UCMServer%2523dDocName%253A566110|s"
+                                                      ,"http://www.fazenda.rj.gov.br/sefaz/faces/webcenter/faces/owResource.jspx?z=oracle.webcenter.doclib%21UCMServer%21UCMServer%2523dDocName%253A104127|s"
+                                                      ,"http://www.fazenda.rj.gov.br/sefaz/faces/webcenter/faces/owResource.jspx?z=oracle.webcenter.doclib%21UCMServer%21UCMServer%2523dDocName%253A103681|s"
+                                                      //Fim - Link Pai
+                                                      ,"http://www.fazenda.rj.gov.br/sefaz/faces/menu_structure/legislacao/legislacao-estadual-navigation/coluna3/Portarias/Portarias-Financeira|2s"
+                                                      ,"http://www.fazenda.rj.gov.br/sefaz/faces/menu_structure/legislacao/legislacao-estadual-navigation/coluna3/Portarias/Portarias-Tributaria|2s"
                                                       ,"http://www.fazenda.rj.gov.br/sefaz/faces/menu_structure/legislacao/legislacao-estadual-navigation/coluna3/PortariasConjuntas/PortariasConjuntas-Financeira|s"
                                                       ,"http://www.fazenda.rj.gov.br/sefaz/faces/menu_structure/legislacao/legislacao-estadual-navigation/coluna3/PortariasConjuntas/PortariasConjuntas-Tributaria|s"
-                                                      ,"http://www.fazenda.rj.gov.br/sefaz/faces/menu_structure/legislacao/legislacao-estadual-navigation/folder73/menu_legislacao_instrucoesnormativas/InstrucoesNormativas-Administrativa|s"
+                                                      ,"http://www.fazenda.rj.gov.br/sefaz/faces/menu_structure/legislacao/legislacao-estadual-navigation/folder73/menu_legislacao_instrucoesnormativas/InstrucoesNormativas-Administrativa|2s"
                                                       ,"http://www.fazenda.rj.gov.br/sefaz/faces/menu_structure/legislacao/legislacao-estadual-navigation/folder73/menu_legislacao_instrucoesnormativas/InstrucoesNormativas-Financeira|s"
                                                       ,"http://www.fazenda.rj.gov.br/sefaz/faces/menu_structure/legislacao/legislacao-estadual-navigation/folder73/menu_legislacao_instrucoesnormativas/InstrucoesNormativas-Tributaria|s"
                                                       ,"http://www.fazenda.rj.gov.br/sefaz/faces/menu_structure/legislacao/legislacao-estadual-navigation/folder73/url70|s"
-                                                      ,"http://www.fazenda.rj.gov.br/sefaz/faces/menu_structure/legislacao/legislacao-estadual-navigation/folder73/url70|s"
-                                                      ,"http://www.fazenda.rj.gov.br/sefaz/faces/menu_structure/legislacao/legislacao-estadual-navigation/coluna2/RegulamentoDoICMS|s"};
+                                                      //Não Processar,"http://www.fazenda.rj.gov.br/sefaz/faces/menu_structure/legislacao/legislacao-estadual-navigation/coluna2/RegulamentoDoICMS|s"
+                };
 
                 foreach (var itemSefazRJ in listSefazRJ)
                 {
-                    var listUrlMg = new List<string>();
+                    var listUrlRj = new List<string>();
 
                     if (!itemSefazRJ.Contains(".pdf"))
-                        listUrlMg = obterUrlNivelDocumentoSefazRJ(itemSefazRJ, itemSefazRJ);
+                        listUrlRj = obterUrlNivelDocumentoSefazRJ(itemSefazRJ, itemSefazRJ);
 
                     else
-                        listUrlMg = new List<string>() { itemSefazRJ };
+                        listUrlRj = new List<string>() { itemSefazRJ };
 
                     objUrll = new ExpandoObject();
 
@@ -5860,7 +5988,7 @@ namespace Systax_BuscaLegal
                     objUrll.Url = itemSefazRJ.Replace("|N", string.Empty).Replace("|s", string.Empty);
                     objUrll.Lista_Nivel2 = new List<dynamic>();
 
-                    listUrlMg.ForEach(delegate(string itemDado)
+                    listUrlRj.ForEach(delegate(string itemDado)
                     {
                         objItenUrl = new ExpandoObject();
 
@@ -5868,7 +5996,8 @@ namespace Systax_BuscaLegal
                         objUrll.Lista_Nivel2.Add(objItenUrl);
                     });
 
-                    new BuscaLegalDao().AtualizarFontes(new List<dynamic>() { objUrll });
+                    if (listUrlRj.Count > 0)
+                        new BuscaLegalDao().AtualizarFontes(new List<dynamic>() { objUrll });
                 }
             }
 
@@ -6929,16 +7058,16 @@ namespace Systax_BuscaLegal
             {
                 this.Text = "Fonte: Sefaz AC";
 
-                linksSefazAc = new List<string>() { "http://www.sefaz.ac.gov.br/wps/portal/sefaz/sefaz/principal/!ut/p/c5/7ZLLboJQEIafxRfgDByBwxLSgxxuilxENgSIJYCAiY1Qnr5oF00XtYsaV53ZTDLzzzfJ_ChBc3bZpSqzt6rvsiOKUSKlG4N5fmiIPAm3GNgmWr9YKxETD8_9vZTCD6HCL-odimGZ-vX7iU3NtK1htNxcZ24eDg5teCcoRlf2waXnMaDN5NSa5YTldJ5UgELhI92jqt294oO6-OMl_-rnq02UlMc-n122u_ruziz_2b9Dco2-PaA9SuSvLWuHEmAippGuefxcoeCBfvvOIrYszAQG2DFBEFby81hk-VDW_JUqb7mhaDngiIyxuBQUUCRFkgSCYg2d2vBi3cIWTWPgyTUHdfEBGlrzCA!!/dl3/d3/L2dBISEvZ0FBIS9nQSEh/?1dmy&current=true&urile=wcm%3apath%3a/SefazServ/Portal+SefazServ/Principal/Servicos/Legislacao/Legislacao+Estadual+repo/Leis+Ordinarias/"
+                linksSefazAc = new List<string>() { /*"http://www.sefaz.ac.gov.br/wps/portal/sefaz/sefaz/principal/!ut/p/c5/7ZLLboJQEIafxRfgDByBwxLSgxxuilxENgSIJYCAiY1Qnr5oF00XtYsaV53ZTDLzzzfJ_ChBc3bZpSqzt6rvsiOKUSKlG4N5fmiIPAm3GNgmWr9YKxETD8_9vZTCD6HCL-odimGZ-vX7iU3NtK1htNxcZ24eDg5teCcoRlf2waXnMaDN5NSa5YTldJ5UgELhI92jqt294oO6-OMl_-rnq02UlMc-n122u_ruziz_2b9Dco2-PaA9SuSvLWuHEmAippGuefxcoeCBfvvOIrYszAQG2DFBEFby81hk-VDW_JUqb7mhaDngiIyxuBQUUCRFkgSCYg2d2vBi3cIWTWPgyTUHdfEBGlrzCA!!/dl3/d3/L2dBISEvZ0FBIS9nQSEh/?1dmy&current=true&urile=wcm%3apath%3a/SefazServ/Portal+SefazServ/Principal/Servicos/Legislacao/Legislacao+Estadual+repo/Leis+Ordinarias/"
                                                    ,"http://www.sefaz.ac.gov.br/wps/portal/sefaz/sefaz/principal/!ut/p/c5/7ZLPboJAEMafxRdgd1kWliO2q_xxwVUWkQtB0xBQxKSNxH36LunB9FCbtKanzlwmmfnmN8l8oAA6T9Wlqau3pj9VR5CDwi6XfiDW0ieIyhWGwTJLnqM5wVRg3d_aJfwiPPiNegNyaJXr9noO1EGtWiWG1OEwVnzg7IB4yq68rTBnJEmlpetpxGWtXpUH4d5F2UwwLxayKvvJLy_5V_9EHYKiPvY77ZPN6Jw7s-ijf4cU-333AragcG5bEs4oDAhm2WwqkK5A-kDHfGbRhWNqQgAxD6Fpzp2_Y1HroSz9lWbXGcO-M6BBHYyJZbrQtV3bNinIn8C5k5dojAUJ_QHRMQdvMnkHWY3K_w!!/dl3/d3/L2dBISEvZ0FBIS9nQSEh/?1dmy&current=true&urile=wcm%3apath%3a/SefazServ/Portal+SefazServ/Principal/Servicos/Legislacao/Legislacao+Estadual+repo/Leis+Complementares/"
                                                    ,"http://www.al.ac.leg.br/leis/?page_id=9789"
-                                                   ,"http://www.sefaz.ac.gov.br/wps/portal/sefaz/sefaz/principal/!ut/p/c5/7ZLPboJAEMafxRdgd1kWliO2q_xxwVUWkQtB0xBQxKSNxH36LunB9FCbtKanzlwmmfnmN8l8oAA6T9Wlqau3pj9VR5CDwi6XfiDW0ieIyhWGwTJLnqM5wVRg3d_aJfwiPPiNegNyaJXr9noO1EGtWiWG1OEwVnzg7IB4yq68rTBnJEmlpetpxGWtXpUH4d5F2UwwLxayKvvJLy_5V_9EHYKiPvY77ZPN6Jw7s-ijf4cU-333AragcG5bEs4oDAhm2WwqkK5A-kDHfGbRhWNqQgAxD6Fpzp2_Y1HroSz9lWbXGcO-M6BBHYyJZbrQtV3bNinIn8C5k5dojAUJ_QHRMQdvMnkHWY3K_w!!/dl3/d3/L2dBISEvZ0FBIS9nQSEh/?1dmy&current=true&urile=wcm%3apath%3a/SefazServ/Portal+SefazServ/Principal/Servicos/Legislacao/Legislacao+Estadual+repo/Decretos/"
+                                                   ,*/"http://www.sefaz.ac.gov.br/wps/portal/sefaz/sefaz/principal/!ut/p/c5/7ZLPboJAEMafxRdgd1kWliO2q_xxwVUWkQtB0xBQxKSNxH36LunB9FCbtKanzlwmmfnmN8l8oAA6T9Wlqau3pj9VR5CDwi6XfiDW0ieIyhWGwTJLnqM5wVRg3d_aJfwiPPiNegNyaJXr9noO1EGtWiWG1OEwVnzg7IB4yq68rTBnJEmlpetpxGWtXpUH4d5F2UwwLxayKvvJLy_5V_9EHYKiPvY77ZPN6Jw7s-ijf4cU-333AragcG5bEs4oDAhm2WwqkK5A-kDHfGbRhWNqQgAxD6Fpzp2_Y1HroSz9lWbXGcO-M6BBHYyJZbrQtV3bNinIn8C5k5dojAUJ_QHRMQdvMnkHWY3K_w!!/dl3/d3/L2dBISEvZ0FBIS9nQSEh/?1dmy&current=true&urile=wcm%3apath%3a/SefazServ/Portal+SefazServ/Principal/Servicos/Legislacao/Legislacao+Estadual+repo/Decretos/"
                                                    ,"http://www.sefaz.ac.gov.br/wps/portal/sefaz/sefaz/principal/!ut/p/c5/7ZLPboJAEMafxRdgd1kWliO2q_xxwVUWkQtB0xBQxKSNxH36LunB9FCbtKanzlwmmfnmN8l8oAA6T9Wlqau3pj9VR5CDwi6XfiDW0ieIyhWGwTJLnqM5wVRg3d_aJfwiPPiNegNyaJXr9noO1EGtWiWG1OEwVnzg7IB4yq68rTBnJEmlpetpxGWtXpUH4d5F2UwwLxayKvvJLy_5V_9EHYKiPvY77ZPN6Jw7s-ijf4cU-333AragcG5bEs4oDAhm2WwqkK5A-kDHfGbRhWNqQgAxD6Fpzp2_Y1HroSz9lWbXGcO-M6BBHYyJZbrQtV3bNinIn8C5k5dojAUJ_QHRMQdvMnkHWY3K_w!!/dl3/d3/L2dBISEvZ0FBIS9nQSEh/?1dmy&current=true&urile=wcm%3apath%3a/SefazServ/Portal+SefazServ/Principal/Servicos/Legislacao/Legislacao+Estadual+repo/Portarias/"
                                                    ,"http://www.sefaz.ac.gov.br/wps/portal/sefaz/sefaz/principal/!ut/p/c5/7ZLPboJAEMafxRdgd1kWliO2q_xxwVUWkQtB0xBQxKSNxH36LunB9FCbtKanzlwmmfnmN8l8oAA6T9Wlqau3pj9VR5CDwi6XfiDW0ieIyhWGwTJLnqM5wVRg3d_aJfwiPPiNegNyaJXr9noO1EGtWiWG1OEwVnzg7IB4yq68rTBnJEmlpetpxGWtXpUH4d5F2UwwLxayKvvJLy_5V_9EHYKiPvY77ZPN6Jw7s-ijf4cU-333AragcG5bEs4oDAhm2WwqkK5A-kDHfGbRhWNqQgAxD6Fpzp2_Y1HroSz9lWbXGcO-M6BBHYyJZbrQtV3bNinIn8C5k5dojAUJ_QHRMQdvMnkHWY3K_w!!/dl3/d3/L2dBISEvZ0FBIS9nQSEh/?1dmy&current=true&urile=wcm%3apath%3a/SefazServ/Portal+SefazServ/Principal/Servicos/Legislacao/Legislacao+Estadual+repo/Instrucao+Normativa/"};
 
                 webBrowser1 = new WebBrowser();
                 webBrowser1.ScriptErrorsSuppressed = true;
-                webBrowser1.Navigate(linksSefazAc[0]);
+                webBrowser1.Navigate(linksSefazAc[itemVez]);
                 webBrowser1.DocumentCompleted += new WebBrowserDocumentCompletedEventHandler(webBrowser1_DocumentCompleted_SefazAc);
             }
 
@@ -7959,13 +8088,13 @@ namespace Systax_BuscaLegal
 
             #region "Captura URL's"
 
-            if (modoProcessamento.Equals("f") || modoProcessamento.Equals("u"))
+            if (modoProcessamento.Equals("f") || modoProcessamento.Equals("u1"))
             {
                 this.Text = "Fonte: Sefaz CE";
 
                 webBrowser1 = new WebBrowser();
                 webBrowser1.ScriptErrorsSuppressed = true;
-                webBrowser1.Navigate("http://www.sefaz.ce.gov.br/Content/aplicacao/internet/Legislacao_Download/gerados/legislacao_2011.asp");
+                webBrowser1.Navigate("http://www2.sefaz.ce.gov.br/alfrescoPublic/br.com.alfresco.FormMain/FormMain.html");
                 webBrowser1.DocumentCompleted += new WebBrowserDocumentCompletedEventHandler(webBrowser1_DocumentCompleted_SefazCe);
             }
 
@@ -8510,9 +8639,9 @@ namespace Systax_BuscaLegal
                 string htmlPage = string.Empty;
 
                 List<string> linksSefazMt = new List<string>() { "http://www.sefaz.mt.gov.br/spl/portalpaginalegislacao?parametroCodigoDestaque=2#"
-                                                   ,"http://www.sefaz.mt.gov.br/spl/portalpaginalegislacao?parametroCodigoDestaque=1"
-                                                   ,"http://www.sefaz.mt.gov.br/spl/portalpaginalegislacao?parametroCodigoDestaque=3"
-                                                   ,"http://www.sefaz.mt.gov.br/spl/portalpaginalegislacao?parametroCodigoDestaque=6"};
+                                                                ,"http://www.sefaz.mt.gov.br/spl/portalpaginalegislacao?parametroCodigoDestaque=1"
+                                                                ,"http://www.sefaz.mt.gov.br/spl/portalpaginalegislacao?parametroCodigoDestaque=3"
+                                                                ,"http://www.sefaz.mt.gov.br/spl/portalpaginalegislacao?parametroCodigoDestaque=6"};
 
                 foreach (var itemMt in linksSefazMt)
                 {
@@ -8544,6 +8673,152 @@ namespace Systax_BuscaLegal
                     }
                     catch (Exception)
                     {
+                    }
+                }
+
+                dynamic itemListaNvl2;
+                DateTime dataApurada;
+
+                List<string> listItensCategoria = new List<string>() { "Decreto"
+                                                                      ,"Comunicado SEFAZ"
+                                                                      ,"_995n76t3iem3scrp09pnn4rb1ehknco905kg46h215t6l8_"
+                                                                      ,"_u95n76t3iem3scrp09pnn4rb1ehknco905kg46h215t6l8baiclr6upr1chgg_"
+                                                                      ,"_495n76t3iem3scrp09pnn4rb1ehknco905kg56ga45t6l8_"
+                                                                      ,"_j95n76t3iem3scrp09pnn4rb1ehknco905kg56ga45t6l8baiclr6upr1chgg_"
+                                                                      ,"_395n76t3iem3scrp09pnn4rb1ehknco905kg56ha48l92ujak_"
+                                                                      ,"_f95n76t3iem3scrp09pnn4rb1ehknco905kg56had84nkql0_"
+                                                                      ,"_t95n76t3iem3scrp09pnn4rb1ehknco905kg56ia39l2iujak_"
+                                                                      ,"_695n76t3iem3scrp09pnn4rb1ehknco905kg56ia39l2iujak5l96atjfctgm8o8_"
+                                                                      ,"_p95n76t3iem3scrp09pnn4rb1ehknco908dgn6o908dkncqbc_"
+                                                                      ,"_295n76t3iem3scrp09pnn4rb1ehknco908dgn6o908dkncqbc5l96atjfctgm8o8_"
+                                                                      ,"_l95n76t3iem3scrp09pnn4rb1ehknco908dnmsqjldpq62_"
+                                                                      ,"_295n76t3iem3scrp09pnn4rb1ehknco908dnmsqjldpq62baiclr6upr1chgg_"
+                                                                      ,"_695n76t3iem3scrp09pnn4rb1ehknco90ad2kcgaq_"
+                                                                      ,"_t95n76t3iem3scrp09pnn4rb1ehknco90ad2kcgaq5l96atjfctgm8o8_"
+                                                                      ,"_u95n76t3iem3scrp09pnn4rb1ehknco90517nat3idtpi1o3icv36usp9_"
+                                                                      ,"Lei"
+                                                                      ,"Portaria"
+                                                                      ,"Portaria Circular"
+                                                                      ,"Portaria Conjunta"
+                                                                      ,"_7a9in6rrcem3scrp05kg470rdc5p6282jclq6usj9c5m20829dpia6srke9km2835411murc2e9hmiro_"
+                                                                      ,"_na9in6rrcem3scrp05kg46h215t6l8_"
+                                                                      ,"_ia9in6rrcem3scrp05kg46ha48l6g_"
+                                                                      ,"_fa9in6rrcem3scrp05kg46ha48l6iqkj5epnmeob4c4_"
+                                                                      ,"_5a9in6rrcem3scrp085pn6pbdc9m84qb14166apr9edm62t39epgg_"
+                                                                      ,"_ma9in6rrcem3scrp08d7ksh25a194uh259l0l8_"
+                                                                      ,"_1a9in6rrcem3scrp08d7ksh25a194uh259l0l8baiclr6upr1chgg_"
+                                                                      ,"_ba9in6rrcem3scrp08dnmsqjldpq62824d5r6asjjdtpi0jricv36uso_"
+                                                                      ,"_2a9in6rrcem3scrp08him6r31e9gn98jid5gi0b90ad4k6ja5_"
+                                                                      ,"_ja9in6rrcem3scrp0a13ka_"
+                                                                      ,"_oa9in6rrcem3scrp0ad2kcgaq_"
+                                                                      ,"_3a9in6rrcem3scrp0ad2kcgaq5l96atjfctgm8o8_"
+                                                                      ,"_da9in6rrcem3scrp0adimsob4dsg4cpb4clp62r0_"
+                                                                      ,"_8a9in6rrcem3scrp0ad4k6ja5_"
+                                                                      ,"_ja9in6rrcem3scrp0ad4k6ja55l96atjfctgm8o8_"
+                                                                      ,"_ia9in6rrcem3scrp0ahp6iojldpgmo834ckg46rreehgn6_"};
+
+                foreach (var itemSefazMt in listItensCategoria)
+                {
+                    dataApurada = new DateTime(1950, 01, 01);
+
+                    while (true)
+                    {
+                        urlCVM = string.Empty;
+
+                        try
+                        {
+                            request = (HttpWebRequest)WebRequest.Create("http://app1.sefaz.mt.gov.br/Sistema/Legislacao/legislacaotribut.nsf/d5c05251580acfee04257057007791ca?OpenForm&Seq=1&BaseTarget=frmFrame2&AutoFramed");
+
+                            var postData = "__Click=0";
+                            postData += "&Assunto=_7adimopb3d5nmsp90elmm283fe23scrp0edii0s3iclj6asj9e8_";
+                            postData += string.Format("&Ato={0}", itemSefazMt);
+
+                            if (dataApurada < new DateTime(2000, 01, 01))
+                            {
+                                postData += string.Format("&DataInicial={0}%2F{1}%2F{2}", dataApurada.ToString("dd"), dataApurada.ToString("MM"), dataApurada.ToString("yyyy"));
+                                postData += string.Format("&DataFinal={0}%2F{1}%2F{2}", dataApurada.ToString("dd"), dataApurada.ToString("MM"), dataApurada.AddYears(50).ToString("yyyy"));
+                            }
+                            else
+                            {
+                                postData += string.Format("&DataInicial={0}%2F{1}%2F{2}", dataApurada.ToString("dd"), dataApurada.ToString("MM"), dataApurada.ToString("yyyy"));
+                                postData += string.Format("&DataFinal={0}%2F{1}%2F{2}", dataApurada.ToString("dd"), dataApurada.ToString("MM"), dataApurada.AddYears(3).ToString("yyyy"));
+                            }
+
+                            postData += "&Numero=";
+                            postData += "&Texto=";
+
+                            var data = Encoding.ASCII.GetBytes(postData);
+
+                            request.Method = "POST";
+                            request.ContentType = "application/x-www-form-urlencoded";
+                            request.ContentLength = data.Length;
+
+                            using (var stream = request.GetRequestStream())
+                            {
+                                stream.Write(data, 0, data.Length);
+                            }
+
+                            var response = (HttpWebResponse)request.GetResponse();
+
+                            var responseString = new StreamReader(response.GetResponseStream()).ReadToEnd().Replace("\"", string.Empty);
+
+                            if (responseString.Contains("Documento n�o encontrado no Sistema"))
+                            {
+                                if (dataApurada < new DateTime(2000, 01, 01))
+                                    dataApurada = dataApurada.AddYears(50);
+                                else
+                                    dataApurada = dataApurada.AddYears(3);
+
+                                if (dataApurada.Year > DateTime.Now.Year)
+                                    break;
+
+                                continue;
+                            }
+                            else
+                                responseString = responseString.Substring(responseString.ToLower().IndexOf("<th nowrap align=left>assunto</th>")).Substring(0, responseString.Substring(responseString.ToLower().IndexOf("<th nowrap align=left>assunto</th>")).IndexOf("</TABLE>"));
+
+                            responseString = System.Net.WebUtility.HtmlDecode(responseString.Replace("\n", " ").Replace("\r", " ").Replace("\t", " "));
+
+                            dynamic objUrl = new ExpandoObject();
+
+                            objUrl.Indexacao = "Secretaria do estado da Fazendo do Mato Grosso";
+                            objUrl.Url = "http://app1.sefaz.mt.gov.br/Sistema/Legislacao/legislacaotribut.nsf/d5c05251580acfee04257057007791ca?OpenForm&Seq=1&BaseTarget=frmFrame2&AutoFramed";
+
+                            objUrl.Lista_Nivel2 = new List<dynamic>();
+
+                            var listFinal = Regex.Split(responseString, "HREF=").ToList();
+
+                            listFinal.RemoveAt(0);
+
+                            foreach (var itemMt in listFinal)
+                            {
+                                try
+                                {
+                                    itemListaNvl2 = new ExpandoObject();
+                                    itemListaNvl2.Url = "http://app1.sefaz.mt.gov.br" + itemMt.Substring(0, itemMt.IndexOf(">"));
+
+                                    objUrl.Lista_Nivel2.Add(itemListaNvl2);
+                                }
+                                catch (Exception ex)
+                                {
+                                    new BuscaLegalDao().InserirLogErro(ex, urlCVM, string.Format("{0}", "1.1 Captura Url - SEFAZ MT"));
+                                }
+                            }
+
+                            new BuscaLegalDao().AtualizarFontes(new List<dynamic>() { objUrl });
+
+                            if (dataApurada < new DateTime(2000, 01, 01))
+                                dataApurada = dataApurada.AddYears(50);
+                            else
+                                dataApurada = dataApurada.AddYears(3);
+
+                            if (dataApurada.Year > DateTime.Now.Year)
+                                break;
+                        }
+                        catch (Exception ex)
+                        {
+                            new BuscaLegalDao().InserirLogErro(ex, urlCVM, string.Format("{0}", "1 Captura Url - SEFAZ MT"));
+                        }
                     }
                 }
             }
@@ -8593,8 +8868,8 @@ namespace Systax_BuscaLegal
 
                             string htmlText = getHtmlPaginaByGet(urlTratada, "default").Replace("\"", string.Empty).Replace("\n", " ").Replace("\t", " ").Replace("\r", " ");
 
-                            List<string> listInformacoes = new List<string>() { htmlText.IndexOf("<FONT SIZE=2 COLOR=336699 FACE=Verdana").ToString() + "|<FONT SIZE=4 FACE=Arial>|</FONT>|<FONT SIZE=2 COLOR=336699 FACE=Verdana>Ementa:|</FONT></B>|<FONT SIZE=2 FACE=Verdana>#6|</FONT>"
-                                                                               /*,htmlText.IndexOf("<FONT SIZE=2 COLOR=336699 FACE=Verdana").ToString() + "|<FONT SIZE=4 FACE=Arial>PORTARIA|</FONT>|<FONT SIZE=2 COLOR=336699 FACE=Verdana>Ementa:|</FONT></B>|<FONT SIZE=2 FACE=Verdana>#6|</FONT>"*/};
+                            List<string> listInformacoes = new List<string>() { htmlText.IndexOf("<FONT SIZE=4 FACE=Arial>") < 0 ? "-1" : htmlText.IndexOf("<FONT SIZE=2 COLOR=336699 FACE=Verdana").ToString() + "|<FONT SIZE=4 FACE=Arial>|</FONT>|<FONT SIZE=2 COLOR=336699 FACE=Verdana>Ementa:|</FONT></B>|<FONT SIZE=2 FACE=Verdana>#6|</FONT>"
+                                                                               ,htmlText.IndexOf("<FONT SIZE=4>") < 0 ? "-1" : htmlText.IndexOf("<FONT SIZE=2 COLOR=336699 FACE=Verdana").ToString() + "|<FONT SIZE=4>|</FONT>|<FONT SIZE=2 COLOR=336699 FACE=Verdana>Ementa:|</FONT></B>|<FONT SIZE=2 FACE=Verdana>#6|</FONT>"};
 
                             listInformacoes.RemoveAll(x => x.Contains("-1"));
                             listInformacoes = listInformacoes.OrderBy(x => int.Parse(x.Split('|')[0])).ToList();
@@ -8611,6 +8886,35 @@ namespace Systax_BuscaLegal
                                 titulo = htmlText.Substring(htmlText.IndexOf(listInformacoes[0].Split('|')[1])).Substring(0, htmlText.Substring(htmlText.IndexOf(listInformacoes[0].Split('|')[1])).IndexOf(listInformacoes[0].Split('|')[2]));
 
                             titulo = Regex.Replace(titulo.Trim(), @"\s+", " ");
+
+                            string auxTitle = string.Empty;
+
+                            //auxTitle = htmlText.Substring(htmlText.IndexOf(listInformacoes[0].Split('|')[1]) + listInformacoes[0].Split('|')[1].Length);
+
+                            //while (true)
+                            //{
+                            //    if (ObterStringLimpa(titulo).Trim().Length < 15)
+                            //    {
+                            //        titulo = auxTitle.Substring(auxTitle.IndexOf(listInformacoes[0].Split('|')[1])).Substring(0, auxTitle.Substring(auxTitle.IndexOf(listInformacoes[0].Split('|')[1])).IndexOf(listInformacoes[0].Split('|')[2]));
+                            //    }
+                            //    else
+                            //        break;
+
+                            //    auxTitle = auxTitle.Substring(auxTitle.IndexOf(listInformacoes[0].Split('|')[1]) + listInformacoes[0].Split('|')[1].Length);
+                            //}
+
+                            if (ObterStringLimpa(titulo).Trim().Length < 15)
+                            {
+                                try
+                                {
+                                    titulo = htmlText.Substring(htmlText.ToLower().IndexOf("face=verdana>texto:") + "face=verdana>texto:".Length).Substring(0, htmlText.Substring(htmlText.ToLower().IndexOf("face=verdana>texto:") + "face=verdana>texto:".Length).ToLower().IndexOf("</b><br>"));
+                                }
+                                catch (Exception)
+                                {
+                                    titulo = htmlText.Substring(htmlText.ToLower().IndexOf("face=verdana>texto:") + "face=verdana>texto:".Length).Substring(0, htmlText.Substring(htmlText.ToLower().IndexOf("face=verdana>texto:") + "face=verdana>texto:".Length).ToLower().IndexOf(".</font>"));
+                                }
+                            }
+
                             titulo = ObterStringLimpa(titulo);
 
                             if (!listInformacoes[0].Split('|')[5].Equals("nd"))
@@ -8625,8 +8929,16 @@ namespace Systax_BuscaLegal
                             else if (titulo.Trim().ToLower().IndexOf(" de") >= 0)
                                 publicacao = titulo.Trim().Substring(titulo.Trim().ToLower().IndexOf(" de") + 3).Trim();
 
-                            if (!listInformacoes[0].Split('|')[3].Equals("nd"))
+                            if (!listInformacoes[0].Split('|')[3].Equals("nd") && htmlText.IndexOf(listInformacoes[0].Split('|')[3]) >= 0)
                                 ementa = htmlText.Substring(htmlText.IndexOf(listInformacoes[0].Split('|')[3])).Substring(0, htmlText.Substring(htmlText.IndexOf(listInformacoes[0].Split('|')[3])).IndexOf(listInformacoes[0].Split('|')[4]));
+
+                            else if (!listInformacoes[0].Split('|')[3].Equals("nd") && htmlText.ToLower().IndexOf("<font size=4 face=arial") >= 0)
+                            {
+                                ementa = htmlText.Substring(htmlText.ToLower().IndexOf("<font size=4 face=arial")).Substring(0, htmlText.Substring(htmlText.ToLower().IndexOf("<font size=4 face=arial")).ToLower().IndexOf("</font>"));
+
+                                if (titulo.Equals(ObterStringLimpa(ementa)))
+                                    ementa = string.Empty;
+                            }
 
                             publicacao = ObterStringLimpa(publicacao);
                             especie = titulo.Substring(0, titulo.IndexOf(" "));
@@ -10326,86 +10638,111 @@ namespace Systax_BuscaLegal
 
         private List<string> obterUrlNivelDocumentoSefazRJ(string url, string raiz)
         {
-            Thread.Sleep(2000);
-
-            List<string> listKeys = new List<string>();
-
-            string resposta = string.Empty;
-
-            resposta = getHtmlPaginaByGet(url.Replace("|N", string.Empty).Replace("|s", string.Empty), "default").Replace("\"", string.Empty);
-
-            listKeys.Add(resposta.ToLower().IndexOf("<table border=0 cellpadding=2 cellspacing=0").ToString() + "|</table>");
-            listKeys.Add(resposta.ToLower().IndexOf("<div id=conteudosefaz").ToString() + "|</div>");
-
-            listKeys.RemoveAll(x => x.Contains("-1"));
             var listRetorn = new List<string>();
 
-            string contexto = string.Empty;
-            List<string> listFolder = new List<string>();
-
-            if (raiz.Contains("|N"))
-                contexto = resposta.Substring(int.Parse(listKeys[0].Split('|')[0])).Substring(0, resposta.Substring(int.Parse(listKeys[0].Split('|')[0])).LastIndexOf(listKeys[0].Split('|')[1])).ToLower();
-            else
-                contexto = resposta.Substring(int.Parse(listKeys[0].Split('|')[0])).Substring(0, resposta.Substring(int.Parse(listKeys[0].Split('|')[0])).LastIndexOf(listKeys[0].Split('|')[1]));
-
-            listFolder = Regex.Split(contexto, "href=").ToList();
-
-            listFolder.RemoveAt(0);
-            listFolder.RemoveAll(x => x.Contains("/constest.nsf/indiceint?openform"));
-            listFolder.RemoveAll(x => x.Contains("/contlei.nsf/leicompint?openform"));
-            listFolder.RemoveAll(x => x.Contains("/contlei.nsf/leiordint?openform"));
-
-            string novaRaiz = string.Empty;
-
-            if (raiz.Contains("|N"))
+            try
             {
-                novaRaiz = string.Empty;
+                Thread.Sleep(2000);
 
-                var listNext = Regex.Split(resposta, "<area href=/").ToList();
+                List<string> listKeys = new List<string>();
 
-                novaRaiz = raiz.Contains("/constest.nsf") ? raiz.Substring(0, raiz.IndexOf("/constest.nsf")) : novaRaiz;
-                novaRaiz = raiz.Contains("/contlei.nsf") ? raiz.Substring(0, raiz.IndexOf("/contlei.nsf")) : novaRaiz;
+                string resposta = string.Empty;
 
-                if (listFolder.Count > 0)
-                    foreach (var item in listFolder)
-                    {
-                        string novaUrl = item.Substring(0, item.IndexOf(">"));
+                resposta = getHtmlPaginaByGet(url.Replace("|N", string.Empty).Replace("|s", string.Empty).Replace("|2s", string.Empty), "default").Replace("\"", string.Empty);
 
-                        if (novaUrl.Contains("#"))
-                            continue;
+                listKeys.Add(resposta.ToLower().IndexOf("<table border=0 cellpadding=2 cellspacing=0").ToString() + "|</table>");
+                listKeys.Add(resposta.ToLower().IndexOf("<div id=conteudosefaz").ToString() + "|</div>");
 
-                        listRetorn.Add(novaRaiz + novaUrl);
-                    }
+                listKeys.RemoveAll(x => x.Contains("-1"));
 
-                string urlPartial = listNext[listNext.Count - 2].Substring(0, listNext[listNext.Count - 2].IndexOf(" "));
+                string contexto = string.Empty;
+                List<string> listFolder = new List<string>();
 
-                novaRaiz = novaRaiz + "/" + urlPartial.Replace("amp;", string.Empty);
+                if (raiz.Contains("|N"))
+                    contexto = resposta.Substring(int.Parse(listKeys[0].Split('|')[0])).Substring(0, resposta.Substring(int.Parse(listKeys[0].Split('|')[0])).LastIndexOf(listKeys[0].Split('|')[1])).ToLower();
+                else
+                    contexto = resposta.Substring(int.Parse(listKeys[0].Split('|')[0])).Substring(0, resposta.Substring(int.Parse(listKeys[0].Split('|')[0])).LastIndexOf(listKeys[0].Split('|')[1]));
 
-                if (!url.Equals(novaRaiz))
-                    listRetorn.AddRange(obterUrlNivelDocumentoSefazRJ(novaRaiz, raiz));
-            }
-            else if (listKeys.Count > 0 && raiz.Contains("|s"))
-            {
-                novaRaiz = raiz.Substring(0, raiz.IndexOf(".br/") + 3);
+                listFolder = Regex.Split(contexto, "href=").ToList().Select(x => (x.Trim().IndexOf(" ") < x.Trim().IndexOf(">") ? x.Substring(0, x.IndexOf(" ")) : x.Substring(0, x.IndexOf(">")))).ToList();
 
-                if (listFolder.Count > 0)
-                    foreach (var item in listFolder)
-                    {
-                        string novaUrl = item.Substring(0, item.IndexOf(" "));
+                listFolder.RemoveAt(0);
+                listFolder.RemoveAll(x => x.Contains("/constest.nsf/indiceint?openform"));
+                listFolder.RemoveAll(x => x.Contains("/contlei.nsf/leicompint?openform"));
+                listFolder.RemoveAll(x => x.Contains("/contlei.nsf/leiordint?openform"));
 
-                        if (novaUrl.Contains("#"))
-                            continue;
+                string novaRaiz = string.Empty;
 
-                        if (!novaUrl.Contains(".br/"))
-                            listRetorn.AddRange(obterUrlNivelDocumentoSefazRJ(novaUrl, raiz));
-                        else
-                            listRetorn.AddRange(obterUrlNivelDocumentoSefazRJ(novaRaiz + novaUrl, raiz));
-                    }
+                if (raiz.Contains("|N"))
+                {
+                    novaRaiz = string.Empty;
+
+                    var listNext = Regex.Split(resposta, "<area href=/").ToList();
+
+                    novaRaiz = raiz.Contains("/constest.nsf") ? raiz.Substring(0, raiz.IndexOf("/constest.nsf")) : novaRaiz;
+                    novaRaiz = raiz.Contains("/contlei.nsf") ? raiz.Substring(0, raiz.IndexOf("/contlei.nsf")) : novaRaiz;
+
+                    if (listFolder.Count > 0)
+                        foreach (var item in listFolder)
+                        {
+                            string novaUrl = item.Substring(0, item.IndexOf(">"));
+
+                            if (novaUrl.Contains("#"))
+                                continue;
+
+                            listRetorn.Add(novaRaiz + novaUrl);
+                        }
+
+                    string urlPartial = listNext[listNext.Count - 2].Substring(0, listNext[listNext.Count - 2].IndexOf(" "));
+
+                    novaRaiz = novaRaiz + "/" + urlPartial.Replace("amp;", string.Empty);
+
+                    if (!url.Equals(novaRaiz))
+                        listRetorn.AddRange(obterUrlNivelDocumentoSefazRJ(novaRaiz, raiz));
+                }
+                else if (listKeys.Count > 0 && raiz.Contains("|s"))
+                {
+                    novaRaiz = raiz.Substring(0, raiz.IndexOf(".br/") + 3);
+
+                    if (listFolder.Count > 0)
+                        foreach (var item in listFolder)
+                        {
+                            string novaUrl = item;
+
+                            if (novaUrl.Contains("#"))
+                                continue;
+
+                            var webBroser = new WebBrowser();
+                            webBroser.ScriptErrorsSuppressed = true;
+
+                            if (novaUrl.Contains(".br"))
+                                webBroser.Navigate(novaUrl);
+                            else
+                                webBroser.Navigate(novaRaiz + novaUrl);
+
+                            webBroser.DocumentCompleted += new WebBrowserDocumentCompletedEventHandler(Wb_DocumentCompleted_SefazRJ);
+
+                            Debug.Print("P1 - " + item);
+                        }
+
+                    Debug.Print("P3 - Fim Loop");
+                }
+                else if (listKeys.Count > 0 && raiz.Contains("|2s"))
+                {
+                    listFolder.RemoveAll(x => !x.Contains("/sefaz"));
+
+                    if (listFolder.Count > 0)
+                        foreach (var item in listFolder)
+                        {
+                            obterUrlNivelDocumentoSefazRJ((!item.Contains(".br") ? raiz.Substring(0, raiz.IndexOf(".br") + 3) + item + "|s" : item + "|s"), (!item.Contains(".br") ? raiz.Substring(0, raiz.IndexOf(".br") + 3) + item + "|s" : item + "|s"));
+                            //Thread.Sleep(2000);
+                        }
+                }
                 else
                     listRetorn.Add(url);
             }
-            else
-                listRetorn.Add(url);
+            catch (Exception)
+            {
+            }
 
             return listRetorn;
         }
