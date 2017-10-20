@@ -20,6 +20,7 @@ namespace DocumentoProvisorio.Controllers
         [HttpGet]
         public ActionResult Index()
         {
+            ViewBag.StatusImportacao = string.Empty;
             return View();
         }
 
@@ -133,7 +134,16 @@ namespace DocumentoProvisorio.Controllers
         [HttpPost]
         public ActionResult ProcessarArquivosDocProvisorio(string path)
         {
-            new BuscaLegalDao("web").ProcessarArquivosDocProvisorio(path);
+            try
+            {
+                new BuscaLegalDao("web").ProcessarArquivosDocProvisorio(path);
+
+                ViewBag.StatusImportacao = "• Importação realizada com sucesso!";
+            }
+            catch (Exception ex)
+            {
+                ViewBag.StatusImportacao = "• Error na Importação: " + ex.Message;
+            }
 
             #region "comentado"
             //OleDbConnection _olecon = null;

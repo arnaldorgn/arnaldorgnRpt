@@ -183,7 +183,7 @@ namespace Busca_LegalDAO
                         this.objComando.Parameters.Add("pSiglaOrgao", !objListInsert.Find(x => x.Tipo == 3).Sigla.Equals(string.Empty) ? string.Format("{0} - {1}", objListInsert.Find(x => x.Tipo == 3).Sigla, objListInsert.Find(x => x.Tipo == 3).DescSigla) : DBNull.Value);
                         this.objComando.Parameters.Add("pNumeroAto", objListInsert.Find(x => x.Tipo == 3).NumeroAto);
                         this.objComando.Parameters.Add("pDataEdicao", objListInsert.Find(x => x.Tipo == 3).DataEdicao);
-                        this.objComando.Parameters.Add("pIdFila", itemEmenta.IdFila);
+                        this.objComando.Parameters.Add("pIdFila", objListInsert.Find(x => x.Tipo == 3).IdFila);
 
                         if (itemEmenta.HasContent)
                         {
@@ -442,7 +442,7 @@ namespace Busca_LegalDAO
                     {
                         objItem.Uf = reader.GetValue(0);
                         objItem.Especie = reader.GetString(1);
-                        objItem.Orgao = reader.GetString(2);
+                        objItem.Orgao = reader.GetValue(2);
                         objItem.Numero = reader.GetValue(3);
                         objItem.Data_publicacao = reader.GetValue(4);
                         objItem.Tipo_documento = reader.GetString(5);
@@ -465,6 +465,7 @@ namespace Busca_LegalDAO
             }
             catch (Exception)
             {
+                throw;
             }
             finally
             {
@@ -501,7 +502,7 @@ namespace Busca_LegalDAO
                     this.objComando.Parameters.AddWithValue("@pEspecie", itensList.Especie);
                     this.objComando.Parameters.AddWithValue("@pOrgao", itensList.Orgao);
                     this.objComando.Parameters.AddWithValue("@pNumero", itensList.Numero);
-                    this.objComando.Parameters.AddWithValue("@pDtPublicacao", itensList.Data_publicacao.ToString("yyyy-MM-dd"));
+                    this.objComando.Parameters.AddWithValue("@pDtPublicacao", Convert.ToDateTime(itensList.Data_publicacao.ToString().Replace(".", "/")).ToString("yyyy-MM-dd"));
                     this.objComando.Parameters.AddWithValue("@pTipoDocumento", itensList.Tipo_documento);
                     this.objComando.Parameters.AddWithValue("@pConteudoPdf", itensList.conteudoPdf);
 
@@ -519,13 +520,21 @@ namespace Busca_LegalDAO
                                                           ,tipo_documento
                                                           ,st_ativo)
                                                     select @pTitulo, @pConteudoPdf, @pDtPublicacao, @pEspecie, @pNumero, @pUf, @pOrgao, @pMetaDados, @pDtPublicacao, @pTipoDocumento, @pStAtivo
-                                                    where not exists (select 1 from conteudo_provisorio where especie = @pEspecie and numero = @pNumero and uf = @pUf and sigla_orgao = @pOrgao and dt_publicacao = @pDtPublicacao and tipo_documento = @pTipoDocumento and st_ativo = @pStAtivo)";
+                                                    where not exists (select 1 from conteudo_provisorio 
+                                                                        where especie = @pEspecie 
+                                                                              and numero = @pNumero 
+                                                                              and uf = @pUf 
+                                                                              and sigla_orgao = @pOrgao 
+                                                                              and dt_publicacao = @pDtPublicacao 
+                                                                              and tipo_documento = @pTipoDocumento 
+                                                                              and st_ativo = @pStAtivo)";
 
                     this.objComando.ExecuteNonQuery();
                 }
             }
             catch (Exception)
             {
+                throw;
             }
             finally
             {

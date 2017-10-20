@@ -11,7 +11,7 @@
     <img src="~/Content/themes/base/images/logo.png" />
     <span><strong>• Cadastro Provisório de Documento •</strong></span>
 </div>
-<div id="divAll"    >
+<div id="divAll">
     <fieldset style="width: 97%; margin-left: 5px">
         <legend>Arquivo(s)</legend>
         <br />
@@ -46,4 +46,6 @@
         }
     </fieldset>
     <input type="button" value="Processar Arquivos" onclick="if(confirm('Confirma o Processamento dos Arquivos?')) ProcessarArquivos();" style="margin-left: 5px" />
+    <br />
+    <span><strong>@ViewBag.StatusImportacao</strong></span>
 </div>
