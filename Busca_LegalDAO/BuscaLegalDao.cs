@@ -308,9 +308,8 @@ namespace Busca_LegalDAO
 
                 this.objComando.ExecuteNonQuery();
             }
-            catch (Exception ex1)
+            catch (Exception)
             {
-                throw ex1;
             }
             finally
             {
@@ -572,6 +571,53 @@ namespace Busca_LegalDAO
             }
 
             return text.ToString();
+        }
+
+        public void ProcessaExtracaoArquivos()
+        {
+            /*Remonta a estrutura do objeto para o processamento dos docs*/
+            List<dynamic> listaRetorno = new List<dynamic>();
+
+            dynamic itemNivel1 = new ExpandoObject();
+            dynamic itemListaDocs;
+
+            try
+            {
+                this.objComando.Connection = this.objConection;
+
+                this.objComando.CommandTimeout = 0;
+                this.objComando.CommandType = System.Data.CommandType.Text;
+                this.objComando.CommandText = "select titulo, texto from conteudo where id_url = 10185 limit 100";
+
+                this.objConection.Open();
+
+                using (NpgsqlDataReader dataReaderObj = this.objComando.ExecuteReader())
+                {
+                    while (dataReaderObj.Read())
+                    {
+                        itemListaDocs = new ExpandoObject();
+
+                        itemListaDocs.titulo = dataReaderObj["titulo"].ToString();
+                        itemListaDocs.texto = dataReaderObj["texto"].ToString();
+
+                        listaRetorno.Add(itemListaDocs);
+                    }
+                }
+
+
+                foreach (var item in listaRetorno)
+                {
+                    File.WriteAllText(@"C:\Temp\" + item.titulo.Replace(" ", string.Empty) + ".txt", item.texto);
+                }
+
+            }
+            catch (Exception)
+            {
+            }
+            finally
+            {
+                this.objConection.Dispose();
+            }
         }
     }
 

@@ -48,13 +48,13 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="itextsharp">
-      <HintPath>..\..\..\..\..\Source\Workspaces\Gestao2\Gestao\SystaxGestao\Lib\itextsharp.dll</HintPath>
+      <HintPath>Lib\itextsharp.dll</HintPath>
     </Reference>
     <Reference Include="itextsharp.pdfa">
-      <HintPath>..\..\..\..\..\Source\Workspaces\Gestao2\Gestao\SystaxGestao\Lib\itextsharp.pdfa.dll</HintPath>
+      <HintPath>Lib\itextsharp.pdfa.dll</HintPath>
     </Reference>
     <Reference Include="itextsharp.xtra">
-      <HintPath>..\..\..\..\..\Source\Workspaces\Gestao2\Gestao\SystaxGestao\Lib\itextsharp.xtra.dll</HintPath>
+      <HintPath>Lib\itextsharp.xtra.dll</HintPath>
     </Reference>
     <Reference Include="Newtonsoft.Json, Version=4.5.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL" />
     <Reference Include="System" />
@@ -74,6 +74,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Facilities.cs" />
     <Compile Include="Form1.cs">
       <SubType>Form</SubType>
     </Compile>

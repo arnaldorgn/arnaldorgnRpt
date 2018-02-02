@@ -1,47 +1,50 @@
 ﻿using Busca_LegalDAO;
-using iTextSharp.text.pdf;
-using iTextSharp.text.pdf.parser;
 using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
 using System.Diagnostics;
 using System.Drawing;
 using System.Dynamic;
 using System.IO;
-using System.IO.Compression;
 using System.Linq;
 using System.Net;
-using System.Security.Cryptography;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
-using System.Threading.Tasks;
 using System.Windows.Forms;
 
 namespace Systax_BuscaLegal
 {
     public partial class Form1 : Form
     {
-        WebBrowser webBrowser1;
+        WebBrowser webBrowserGERAL;
+        WebBrowser webBrowserSefazRR;
         DateTime dataCorrente = new DateTime(2013, 10, 03);
         int idUrl = 0;
         int tentativa = 0;
         int countSefaz = 1;
         int countCFC = 1;
-
         bool isFirst = true;
+        int PgNumber;
+        List<string> ItenCapturar;
+        //bool pontoAcesso = false;
+        List<dynamic> listNavegacao = new List<dynamic>();
+
+        private const UInt32 MOUSEEVENTF_LEFTDOWN = 0x0002;
+        private const UInt32 MOUSEEVENTF_LEFTUP = 0x0004;
+
+        [DllImport("user32.dll")]
+        private static extern void mouse_event(uint dwFlags, uint dx, uint dy, uint dwData, uint dwExtraInf);
 
         List<string> linksSefazAc;
 
         public Form1()
         {
-            InitializeComponent();
-        }
+            //new BuscaLegalDao().ProcessaExtrecaoArquivos();
+            //Facilities.FixBrowserVersion();
 
-        private void button1_Click(object sender, EventArgs e)
-        {
+            InitializeComponent();
             ProcessarBusca();
         }
 
@@ -55,11 +58,11 @@ namespace Systax_BuscaLegal
 
                 do
                 {
-                    // Do nothing while we wait for the page to load
+                    // Do nothing while we wait for the page to loadf
                 }
-                while (webBrowser1.ReadyState == WebBrowserReadyState.Loading);
+                while (webBrowserGERAL.ReadyState == WebBrowserReadyState.Loading);
 
-                conteudo = webBrowser1.DocumentText;
+                conteudo = webBrowserGERAL.DocumentText;
 
                 if (conteudo.Contains("Ementas não encontradas. Refine os critérios de pesquisa."))
                 {
@@ -81,7 +84,7 @@ namespace Systax_BuscaLegal
 
                         var listaCssTratada = new List<string>();
 
-                        var urlFull = webBrowser1.Url.ToString().Replace("https", "http");
+                        var urlFull = webBrowserGERAL.Url.ToString().Replace("https", "http");
 
                         urlFull = urlFull.Substring(0, urlFull.IndexOf(".jsf"));
 
@@ -89,7 +92,7 @@ namespace Systax_BuscaLegal
                         {
                             string novaCss = string.Format("{0}{1}", "<link", x.Substring(0, x.IndexOf(">") + 1));
 
-                            novaCss = novaCss.Insert(novaCss.IndexOf("href=") + 5, ("http://" + webBrowser1.Url.ToString().Substring(webBrowser1.Url.ToString().IndexOf("//") + 2).Substring(0, webBrowser1.Url.ToString().Substring(webBrowser1.Url.ToString().IndexOf("//") + 2).IndexOf("/"))));
+                            novaCss = novaCss.Insert(novaCss.IndexOf("href=") + 5, ("http://" + webBrowserGERAL.Url.ToString().Substring(webBrowserGERAL.Url.ToString().IndexOf("//") + 2).Substring(0, webBrowserGERAL.Url.ToString().Substring(webBrowserGERAL.Url.ToString().IndexOf("//") + 2).IndexOf("/"))));
 
                             listaCssTratada.Add(novaCss.Replace("\"", string.Empty));
                         });
@@ -142,7 +145,7 @@ namespace Systax_BuscaLegal
                                 y = y.Replace((y.Substring(y.IndexOf("<td role=gridcell"), y.IndexOf("<span style=text-align: justify") - y.IndexOf("<td role=gridcell"))),
                                         "<div class=\"ui-dialog-content ui-widget-content\" style=\"height: 500px;\"><div class=\"line CLASSE_NAO_DEFINIDA\" style=\"ESTILO_NAO_DEFINIDO\"><h1><span style=\"align:center\">" + itemListaEmenta.TituloAto + "</span></h1><br></div><div class=\"line CLASSE_NAO_DEFINIDA\" style=\"ESTILO_NAO_DEFINIDO\"><br><h2>" + "<br></h2></div></div>");
 
-                                itemListaEmenta.Texto = urlFull + removeTagScript(y);
+                                itemListaEmenta.Texto = urlFull + new Facilities().removeTagScript(y);
                                 itemListaEmenta.Tipo = 3;
                                 itemListaEmenta.Metadado = "{" + string.Format("\"UF\":\"{0}\"", "FED") + "}";
 
@@ -151,7 +154,7 @@ namespace Systax_BuscaLegal
                                 /*Concatena todos os demais valores superiores ao index 4 devido ser conteudo da ementa*/
                                 novaLista.GetRange(4, novaLista.Count() - 4).ForEach(x => textoConteudo += x + Environment.NewLine);
 
-                                itemListaEmenta.Hash = this.GerarHash(removerCaracterEspecial(textoConteudo));
+                                itemListaEmenta.Hash = new Facilities().GerarHash(new Facilities().removerCaracterEspecial(textoConteudo));
                                 itemListaEmenta.Ementa = textoConteudo;
 
                                 itemListaEmenta.Sigla = novaLista[1];
@@ -193,17 +196,17 @@ namespace Systax_BuscaLegal
                 {
                     // Do nothing while we wait for the page to load
                 }
-                while (webBrowser1.ReadyState == WebBrowserReadyState.Loading);
+                while (webBrowserGERAL.ReadyState == WebBrowserReadyState.Loading);
 
                 if (countSefaz == 1)
                 {
-                    webBrowser1.Document.GetElementById("RepeaterAreasGrupos_ctl01_cblAreasGrupos_0").InvokeMember("Click");
-                    webBrowser1.Document.GetElementById("BtnBuscar").InvokeMember("Click");
+                    webBrowserGERAL.Document.GetElementById("RepeaterAreasGrupos_ctl01_cblAreasGrupos_0").InvokeMember("Click");
+                    webBrowserGERAL.Document.GetElementById("BtnBuscar").InvokeMember("Click");
                     countSefaz++;
                 }
                 else
                 {
-                    var conteudo = webBrowser1.DocumentText;
+                    var conteudo = webBrowserGERAL.DocumentText;
 
                     conteudo = conteudo.Substring(conteudo.IndexOf("<ul"), conteudo.IndexOf("</ul>") - conteudo.IndexOf("<ul")).Replace("\"", string.Empty);
 
@@ -239,7 +242,7 @@ namespace Systax_BuscaLegal
 
                     new BuscaLegalDao().AtualizarFontes(new List<dynamic>() { objUrl });
 
-                    webBrowser1.Document.GetElementById("LinkNext").InvokeMember("Click");
+                    webBrowserGERAL.Document.GetElementById("LinkNext").InvokeMember("Click");
                 }
             }
             catch (Exception)
@@ -255,7 +258,7 @@ namespace Systax_BuscaLegal
                 {
                     // Do nothing while we wait for the page to load
                 }
-                while (webBrowser1.ReadyState == WebBrowserReadyState.Loading);
+                while (webBrowserGERAL.ReadyState == WebBrowserReadyState.Loading);
 
                 Thread.Sleep(2000);
 
@@ -264,9 +267,9 @@ namespace Systax_BuscaLegal
                     countSefaz++;
                     tentativa++;
 
-                    webBrowser1.Document.GetElementById("QueryBox").InnerText = " ";
+                    webBrowserGERAL.Document.GetElementById("QueryBox").InnerText = " ";
 
-                    var comboBox = webBrowser1.Document.GetElementById("ViewList");
+                    var comboBox = webBrowserGERAL.Document.GetElementById("ViewList");
 
                     foreach (HtmlElement itemValue in comboBox.Children)
                     {
@@ -280,13 +283,13 @@ namespace Systax_BuscaLegal
                             itemValue.SetAttribute("selected", "");
                     }
 
-                    webBrowser1.Document.GetElementById("SearchButton").InvokeMember("Click");
+                    webBrowserGERAL.Document.GetElementById("SearchButton").InvokeMember("Click");
                 }
                 else
                 {
                     countSefaz++;
 
-                    var conteudo = webBrowser1.DocumentText.ToLower().Replace("\"", string.Empty).Replace("\n", string.Empty).Replace("\r", string.Empty);
+                    var conteudo = webBrowserGERAL.DocumentText.ToLower().Replace("\"", string.Empty).Replace("\n", string.Empty).Replace("\r", string.Empty);
 
                     List<int> xx = new List<int>() { conteudo.IndexOf("<table tabindex=10 id=resultstable"), conteudo.IndexOf("<table id=resultstable tabindex=") };
 
@@ -327,8 +330,8 @@ namespace Systax_BuscaLegal
                         new BuscaLegalDao().AtualizarFontes(new List<dynamic>() { objUrl });
                     }
 
-                    if (webBrowser1.DocumentText.Contains("NextButton"))
-                        webBrowser1.Document.GetElementById("NextButton").InvokeMember("Click");
+                    if (webBrowserGERAL.DocumentText.Contains("NextButton"))
+                        webBrowserGERAL.Document.GetElementById("NextButton").InvokeMember("Click");
                     else if (tentativa < 6)
                     {
                         string value = "";
@@ -351,9 +354,9 @@ namespace Systax_BuscaLegal
 
                         tentativa++;
 
-                        webBrowser1.Document.GetElementById("QueryBox").InnerText = " ";
+                        webBrowserGERAL.Document.GetElementById("QueryBox").InnerText = " ";
 
-                        var comboBox = webBrowser1.Document.GetElementById("ViewList");
+                        var comboBox = webBrowserGERAL.Document.GetElementById("ViewList");
 
                         foreach (HtmlElement itemValue in comboBox.Children)
                         {
@@ -367,13 +370,13 @@ namespace Systax_BuscaLegal
                                 itemValue.SetAttribute("selected", "");
                         }
 
-                        webBrowser1.Document.GetElementById("SearchButton").InvokeMember("Click");
+                        webBrowserGERAL.Document.GetElementById("SearchButton").InvokeMember("Click");
                     }
                 }
             }
             catch (Exception)
             {
-                webBrowser1.Document.GetElementById("NextButton").InvokeMember("Click");
+                webBrowserGERAL.Document.GetElementById("NextButton").InvokeMember("Click");
             }
         }
 
@@ -491,12 +494,12 @@ namespace Systax_BuscaLegal
             {
                 // Do nothing while we wait for the page to load
             }
-            while (webBrowser1.ReadyState == WebBrowserReadyState.Loading);
+            while (webBrowserGERAL.ReadyState == WebBrowserReadyState.Loading);
 
-            string htmlUrl = webBrowser1.DocumentText.Replace("\"", string.Empty).Replace("\t", " ").Replace("\n", " ").Replace("\r", " ").Replace("'", string.Empty);
+            string htmlUrl = webBrowserGERAL.DocumentText.Replace("\"", string.Empty).Replace("\t", " ").Replace("\n", " ").Replace("\r", " ").Replace("'", string.Empty);
 
             /*Pegando*/
-            HtmlElementCollection col = webBrowser1.Document.GetElementsByTagName("ul");
+            HtmlElementCollection col = webBrowserGERAL.Document.GetElementsByTagName("ul");
 
             htmlUrl = htmlUrl.Substring(htmlUrl.IndexOf("<table class=table table-striped")).Substring(0, htmlUrl.Substring(htmlUrl.IndexOf("<table class=table table-striped")).IndexOf("</table>"));
             var listLinks = Regex.Split(htmlUrl, "href=").ToList();
@@ -536,10 +539,10 @@ namespace Systax_BuscaLegal
                             clicar = true;
                         else if (clicar)
                         {
-                            webBrowser1 = new WebBrowser();
-                            webBrowser1.ScriptErrorsSuppressed = true;
-                            webBrowser1.Navigate(@"http://www.sefin.ro.gov.br/lista.jsp?tipo=lei&formato=108&page=" + childElement.InnerText.Trim());
-                            webBrowser1.DocumentCompleted += new WebBrowserDocumentCompletedEventHandler(webBrowser1_DocumentCompletedSefazRo);
+                            webBrowserGERAL = new WebBrowser();
+                            webBrowserGERAL.ScriptErrorsSuppressed = true;
+                            webBrowserGERAL.Navigate(@"http://www.sefin.ro.gov.br/lista.jsp?tipo=lei&formato=108&page=" + childElement.InnerText.Trim());
+                            webBrowserGERAL.DocumentCompleted += new WebBrowserDocumentCompletedEventHandler(webBrowser1_DocumentCompletedSefazRo);
 
                             break;
                         }
@@ -601,40 +604,6 @@ namespace Systax_BuscaLegal
             }
         }
 
-        private void Wb_DocumentCompleted_SefazRR(object sender, WebBrowserDocumentCompletedEventArgs e)
-        {
-            try
-            {
-                do
-                {
-                    // Do nothing while we wait for the page to load
-                }
-                while (((WebBrowser)sender).ReadyState == WebBrowserReadyState.Loading);
-
-                WebBrowser webBro = (WebBrowser)sender;
-
-                HtmlElement col = webBro.Document.GetElementById("Grid1ContainerTbl");
-
-                //col.AttachEventHandler("onpropertychange", delegate { testEventHandler(col, EventArgs.Empty); });
-
-                foreach (HtmlElement element in col.GetElementsByTagName("tr"))
-                {
-                    string cls = element.GetAttribute("className");
-
-                    if (cls.Equals("GridOdd") || cls.Equals("GridOdd"))
-                    {
-                        if (element.InnerHtml.ToLower().Contains("folder.gif"))
-                        {
-                            webBro.Document.GetElementById("vLINK_0001").InvokeMember("Click");
-                        }
-                    }
-                }
-            }
-            catch (Exception)
-            {
-            }
-        }
-
         private void Wb_DocumentCompleted_SefazAL(object sender, WebBrowserDocumentCompletedEventArgs e)
         {
             try
@@ -678,34 +647,6 @@ namespace Systax_BuscaLegal
                                 element.InvokeMember("Click");
                             }
                         }
-                    }
-                }
-            }
-            catch (Exception)
-            {
-            }
-        }
-
-        private void Wb_DocumentCompleted_MTE(object sender, WebBrowserDocumentCompletedEventArgs e)
-        {
-            try
-            {
-                do
-                {
-                    // Do nothing while we wait for the page to load
-                }
-                while (((WebBrowser)sender).ReadyState == WebBrowserReadyState.Loading);
-
-                WebBrowser webBro = (WebBrowser)sender;
-
-                HtmlElementCollection col = webBro.Document.GetElementsByTagName("div");
-
-                foreach (HtmlElement element in col)
-                {
-                    string cls = element.GetAttribute("className");
-
-                    if (element.InnerHtml.Contains("2011"))
-                    {
                     }
                 }
             }
@@ -775,35 +716,602 @@ namespace Systax_BuscaLegal
             }
         }
 
+        private void Wb_DocumentCompleted_CARF(object sender, WebBrowserDocumentCompletedEventArgs e)
+        {
+            try
+            {
+                do
+                {
+                    // Do nothing while we wait for the page to load
+                }
+                while (((WebBrowser)sender).ReadyState != WebBrowserReadyState.Complete);
+
+                WebBrowser webBro = (WebBrowser)sender;
+
+                if (webBro.Document.GetElementById("dataInicialInputDate") != null)
+                {
+                    webBro.Document.GetElementById("dataInicialInputDate").InnerText = string.Empty;
+                    webBro.Document.GetElementById("dataFinalInputDate").InnerText = string.Empty;
+
+                    HtmlElementCollection hides = webBro.Document.GetElementById("campo_pesquisa1").GetElementsByTagName("input");
+
+                    foreach (HtmlElement item in hides)
+                        if (item.OuterHtml.Contains("value=3"))
+                            item.InvokeMember("Click");
+
+                    webBro.Document.GetElementById("valor_pesquisa1").InnerText = "1302-0";
+                    webBro.Document.GetElementById("botaoPesquisarCarf").InvokeMember("Click");
+
+                    WebBrowser webBrowser = new WebBrowser();
+
+                    webBrowser.ScriptErrorsSuppressed = true;
+                    webBrowser.Navigate("http://bet365.com");
+                    webBrowser.DocumentCompleted += new WebBrowserDocumentCompletedEventHandler(Wb_DocumentCompleted_CARFF);
+                }
+                else if (webBro.DocumentText.Replace("\"", string.Empty).Contains("<span id=formAcordaos:labelAnexos"))
+                {
+                    HtmlElementCollection links = webBro.Document.GetElementsByTagName("a");
+
+                    foreach (HtmlElement eleItem in links)
+                    {
+                        if (eleItem.OuterHtml.ToLower().Contains(".pdf"))
+                        {
+                            string document = webBro.DocumentText.Replace("\"", string.Empty);
+                            string jfViewState = document.Substring(document.IndexOf("id=javax.faces.ViewState")).Substring(0, document.Substring(document.IndexOf("id=javax.faces.ViewState")).IndexOf(">"));
+
+                            jfViewState = jfViewState.Substring(jfViewState.IndexOf("value=") + 6).Substring(0, jfViewState.Substring(jfViewState.IndexOf("value=") + 6).IndexOf(" "));
+
+                            string idAnexo = eleItem.OuterHtml.Substring(eleItem.OuterHtml.IndexOf("id=formAcordaos") + 3).Substring(0, eleItem.OuterHtml.Substring(eleItem.OuterHtml.IndexOf("id=formAcordaos") + 3).IndexOf(" "));
+
+                            //string pathAnexo = AppDomain.CurrentDomain.BaseDirectory.ToString().Substring(0, AppDomain.CurrentDomain.BaseDirectory.ToString().IndexOf("bin"));
+                            string pathAnexo = string.Empty; //AppDomain.CurrentDomain.BaseDirectory.ToString().Substring(0, AppDomain.CurrentDomain.BaseDirectory.ToString().IndexOf("bin")) + "AnexoCarf.pdf";
+                            pathAnexo = AppDomain.CurrentDomain.BaseDirectory.ToString() + "AnexoCarf.pdf";
+
+                            string arguments = "\"http://carf.fazenda.gov.br/sincon/public/pages/ConsultarJurisprudencia/listaJurisprudencia.jsf\" -H \"Host: carf.fazenda.gov.br\" -H \"User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:56.0) Gecko/20100101 Firefox/56.0\" -H \"Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8\" -H \"Accept-Language: pt-BR,pt;q=0.8,en-US;q=0.5,en;q=0.3\" --compressed -H \"Referer: https://carf.fazenda.gov.br/sincon/public/pages/ConsultarJurisprudencia/listaJurisprudenciaCarf.jsf\" -H \"Content-Type: application/x-www-form-urlencoded\" -H \"Cookie: " + webBro.Document.Cookie + "\" -H \"Connection: keep-alive\" -H \"Upgrade-Insecure-Requests: 1\" --data \"formAcordaos=formAcordaos&uniqueToken=&javax.faces.ViewState=" + jfViewState + "&formAcordaos\"%\"3A_idcl=formAcordaos\"%\"3A{0}\"%\"3A0\"%\"3A{1}\" --output \"" + pathAnexo + "\"";
+
+                            arguments = string.Format(arguments, idAnexo.Split(':')[1], idAnexo.Split(':')[3]);
+
+                            var startInfo = new ProcessStartInfo();
+                            startInfo.RedirectStandardError = true;
+
+                            Process p = new Process();
+
+                            p.StartInfo = startInfo;
+
+                            p.StartInfo.UseShellExecute = false;
+                            p.StartInfo.WorkingDirectory = AppDomain.CurrentDomain.BaseDirectory.ToString();//.Substring(0, AppDomain.CurrentDomain.BaseDirectory.ToString().IndexOf("bin"));
+                            p.StartInfo.RedirectStandardOutput = true;
+                            p.StartInfo.CreateNoWindow = false;
+                            p.StartInfo.FileName = p.StartInfo.WorkingDirectory + @"curl.exe";
+                            p.StartInfo.Arguments = arguments;
+
+                            p.Start();
+                            string output = p.StandardOutput.ReadToEnd();
+                            p.WaitForExit();
+                            //string error = p.StandardError.ReadToEnd();
+
+                            Thread.Sleep(2000);
+
+                            dynamic itemListaVez = new ExpandoObject();
+                            dynamic ementaInserir = new ExpandoObject();
+
+                            ementaInserir.ListaArquivos = new List<ArquivoUpload>();
+
+                            itemListaVez.ListaEmenta = new List<dynamic>();
+
+                            itemListaVez.Url = this.webBrowserGERAL.Url.AbsoluteUri;
+                            itemListaVez.IdUrl = 10185; //Ver como passar o correto aqui.
+
+                            byte[] arrayFile = File.ReadAllBytes(pathAnexo);
+
+                            File.Delete(pathAnexo);
+
+                            string dadosPdf = string.Empty;
+
+                            try
+                            {
+                                dadosPdf = webBro.DocumentText.Replace("\"", string.Empty).Substring(webBro.DocumentText.Replace("\"", string.Empty).IndexOf("<table cellpadding=5 cellspacing=5 class=tabelaComBorda tabelaResultado>")).Substring(0, webBro.DocumentText.Replace("\"", string.Empty).Substring(webBro.DocumentText.Replace("\"", string.Empty).IndexOf("<table cellpadding=5 cellspacing=5 class=tabelaComBorda tabelaResultado>")).IndexOf("</table>") + 8);
+                                dadosPdf = System.Net.WebUtility.HtmlDecode(dadosPdf.Replace("\n", " ").Replace("\r", " ").Replace("\t", " "));
+
+                                dadosPdf = dadosPdf.Remove(dadosPdf.IndexOf("<!-- h:outputText"), dadosPdf.Substring(dadosPdf.IndexOf("<!-- h:outputText")).Substring(0, dadosPdf.Substring(dadosPdf.IndexOf("<!-- h:outputText")).IndexOf("-->") + 3).Length);
+                            }
+                            catch (Exception)
+                            {
+                            }
+
+                            /** Outros **/
+                            ementaInserir.DescSigla = string.Empty;
+                            ementaInserir.HasContent = false;
+
+                            /** Arquivo **/
+                            ementaInserir.Tipo = 3;
+                            ementaInserir.Metadado = "{" + string.Format("\"UF\":\"{0}\"", "FED") + "}";
+
+                            string numero = string.Empty;
+                            string especie = "Acordão";
+                            string titulo = string.Empty;
+                            string publicacao = string.Empty;
+                            string edicao = string.Empty;
+                            string ementa = string.Empty;
+                            string decisao = string.Empty;
+
+                            /*Captura CSS*/
+
+                            var listaCss = Regex.Split(webBro.DocumentText.ToLower(), "<link").ToList();
+
+                            listaCss.RemoveAt(0);
+
+                            List<string> listaCssTratada = new List<string>();
+
+                            string novaCss = string.Empty;
+
+                            listaCss.ForEach(delegate(string x)
+                            {
+                                novaCss = string.Format("{0}{1}", "<link", x.Substring(0, x.IndexOf(">") + 1));
+
+                                if (!novaCss.ToLower().Contains("http"))
+                                    novaCss = novaCss.Insert(novaCss.IndexOf("href=") + 5, ("http://" + webBro.Url.AbsoluteUri.Substring(webBro.Url.AbsoluteUri.IndexOf("//") + 2).Substring(0, webBro.Url.AbsoluteUri.Substring(webBro.Url.AbsoluteUri.IndexOf("//") + 2).IndexOf("/"))));
+
+                                listaCssTratada.Add(novaCss);
+                            });
+
+                            novaCss = string.Empty;
+
+                            listaCssTratada.ForEach(x => novaCss += x);
+
+                            string descStyle = string.Empty;
+
+                            if (webBro.DocumentText.ToLower().ToLower().Contains("<style"))
+                                descStyle = webBro.DocumentText.ToLower().Substring(webBro.DocumentText.ToLower().ToLower().IndexOf("<style"))
+                                                           .Substring(0, webBro.DocumentText.ToLower().Substring(webBro.DocumentText.ToLower().ToLower().IndexOf("<style")).ToLower().IndexOf("</style>") + 8);
+
+                            /*Fim Captura CSS*/
+
+                            try
+                            {
+                                numero = new Facilities().ObterStringLimpa(dadosPdf.Substring(dadosPdf.IndexOf("<span id=formAcordaos:numDecisao")).Substring(0, dadosPdf.Substring(dadosPdf.IndexOf("<span id=formAcordaos:numDecisao")).IndexOf("</span>")));
+                                titulo = string.Format("{0} {1}", especie, numero);
+
+                                decisao = new Facilities().ObterStringLimpa(dadosPdf.Substring(dadosPdf.IndexOf("<span id=formAcordaos:textDecisao")).Substring(0, dadosPdf.Substring(dadosPdf.IndexOf("<span id=formAcordaos:textDecisao")).IndexOf("</span>")));
+                                publicacao = new Facilities().ObterStringLimpa(dadosPdf.Substring(dadosPdf.IndexOf("<span id=formAcordaos:dataSessao")).Substring(0, dadosPdf.Substring(dadosPdf.IndexOf("<span id=formAcordaos:dataSessao")).IndexOf("</span>")));
+
+                                ementa = new Facilities().ObterStringLimpa(dadosPdf.Substring(dadosPdf.IndexOf("<span id=formAcordaos:ementa")).Substring(0, dadosPdf.Substring(dadosPdf.IndexOf("<span id=formAcordaos:ementa")).IndexOf("</span>")));
+                            }
+                            catch (Exception)
+                            {
+                            }
+
+                            ementaInserir.ListaArquivos.Add(new ArquivoUpload() { conteudoArquivo = arrayFile, ExtensaoArquivo = "pdf", NomeArquivo = numero });
+
+                            //titulo.ToList().ForEach(delegate(char x) { numero += char.IsNumber(x) && (numero.Equals(string.Empty) || !numero.Contains(".")) ? x.ToString() : numero.Equals(string.Empty) ? string.Empty : "."; });
+                            //especie = titulo.Substring(0,new Facilities().obterPontoCorte(titulo)).Trim();
+
+                            if (numero.Equals(string.Empty))
+                                numero = "0";
+
+                            /** Default **/
+                            ementaInserir.Publicacao = publicacao;
+                            ementaInserir.Sigla = string.Empty;
+                            ementaInserir.Republicacao = string.Empty;
+                            ementaInserir.Ementa = ementa;
+                            ementaInserir.TituloAto = titulo;
+                            ementaInserir.Especie = especie;
+                            ementaInserir.NumeroAto = (Regex.Replace(numero, "[^0-9]+", string.Empty) + "0000000000").Substring(0, 9);
+                            ementaInserir.DataEdicao = edicao;
+                            ementaInserir.Texto = novaCss + descStyle + new Facilities().removeTagScript(dadosPdf);
+                            ementaInserir.Hash = new Facilities().GerarHash(new Facilities().removerCaracterEspecial(ementaInserir.Texto));
+                            ementaInserir.IdFila = 0; //itemLista_Nivel2.Id;
+
+                            ementaInserir.Escopo = "FED";
+
+                            itemListaVez.ListaEmenta.Add(ementaInserir);
+
+                            dynamic itemFonte = new ExpandoObject();
+
+                            itemFonte.Lista_Nivel2 = new List<dynamic>() { itemListaVez };
+
+                            new BuscaLegalDao().AtualizarFontes(new List<dynamic>() { itemFonte });
+
+                            //Tratamento Voltar a paginação Atual
+                            HtmlElementCollection inputs = webBro.Document.GetElementsByTagName("input");
+
+                            foreach (HtmlElement item in inputs)
+                            {
+                                if (item.OuterHtml.ToLower().Contains("value=voltar"))
+                                    item.InvokeMember("Click");
+                            }
+
+                            break;
+                        }
+                    }
+                }
+                else
+                {
+                    while (true)
+                    {
+                        if (ItenCapturar.Count > 0 && this.webBrowserGERAL.Document.GetElementById(ItenCapturar[0]) != null /*&& (this.webBrowser1.Document.Body.OuterText.Contains("9101-002.083") || pontoAcesso)*/)
+                        {
+                            //PgNumber = !pontoAcesso ? 1180 : PgNumber;
+                            //pontoAcesso = true;
+
+                            if (this.webBrowserGERAL.Document.GetElementById(ItenCapturar[0]).OuterHtml.Contains("1302-"))
+                            {
+                                this.webBrowserGERAL.Document.GetElementById(ItenCapturar[0]).InvokeMember("Click");
+                                ItenCapturar.RemoveAt(0);
+                                break;
+                            }
+                            else
+                            {
+                                ItenCapturar.RemoveAt(0);
+                                continue;
+                            }
+                        }
+                        else
+                        {
+                            HtmlElementCollection linksNext = webBro.Document.GetElementsByTagName("td");
+
+                            foreach (HtmlElement item in linksNext)
+                            {
+                                if (item.OuterHtml.Contains("rich:datascroller:onscroll', {'page': 'next'});") && !item.OuterHtml.Contains("Event.fire(this, 'rich:datascroller:onscroll', {'page': 'fastforward'});"))
+                                {
+                                    item.InvokeMember("Click");
+
+                                    WebBrowser webBrowser = new WebBrowser();
+
+                                    webBrowser.ScriptErrorsSuppressed = true;
+                                    webBrowser.Navigate("http://bet365.com");
+                                    webBrowser.DocumentCompleted += new WebBrowserDocumentCompletedEventHandler(Wb_DocumentCompleted_CARFF);
+
+                                    PgNumber += 10;
+                                    break;
+                                }
+                            }
+
+                            break;
+                        }
+                    }
+                }
+            }
+            catch (Exception)
+            {
+                MessageBox.Show("Erro no Chamado 1");
+            }
+        }
+
+        private void Wb_DocumentCompleted_CARFF(object sender, WebBrowserDocumentCompletedEventArgs e)
+        {
+            do
+            {
+                // Do nothing while we wait for the page to load
+            }
+            while (((WebBrowser)sender).ReadyState == WebBrowserReadyState.Loading);
+
+            try
+            {
+                if (ItenCapturar == null || ItenCapturar.Count == 0 /*|| (!this.webBrowser1.Document.Body.OuterText.Contains("9101-002.083") && !pontoAcesso)*/)
+                {
+                    ItenCapturar = new List<string>();
+
+                    for (int i = PgNumber; i < (PgNumber + 10); i++)
+                    {
+                        ItenCapturar.Add("tblJurisprudencia:" + i + ":numDecisao");
+                    }
+                }
+
+                if (this.webBrowserGERAL.Document.GetElementById(ItenCapturar[0]) != null)
+                {
+                    this.webBrowserGERAL.Document.GetElementById(ItenCapturar[0]).InvokeMember("Click");
+                    ItenCapturar.RemoveAt(0);
+                }
+                else
+                {
+                    WebBrowser webBrowser = new WebBrowser();
+
+                    webBrowser.ScriptErrorsSuppressed = true;
+                    webBrowser.Navigate("http://bet365.com");
+                    webBrowser.DocumentCompleted += new WebBrowserDocumentCompletedEventHandler(Wb_DocumentCompleted_CARFF);
+                }
+            }
+            catch (Exception)
+            {
+                MessageBox.Show("Erro no Chamado 2");
+            }
+        }
+
+        private void Wb_DocumentCompleted_CEF(object sender, WebBrowserDocumentCompletedEventArgs e)
+        {
+            do
+            {
+                // Do nothing while we wait for the page to load
+            }
+            while (((WebBrowser)sender).ReadyState == WebBrowserReadyState.Loading);
+
+            try
+            {
+                WebBrowser weBroCEF = ((WebBrowser)sender);
+
+                if (weBroCEF.Document.GetElementById("resultado_legislacao") == null)
+                {
+                    HtmlElement dropDown = weBroCEF.Document.GetElementById("Criterio");
+
+                    foreach (HtmlElement itemHtml in dropDown.Children)
+                    {
+                        if (itemHtml.OuterHtml.Contains(System.Net.WebUtility.UrlDecode(weBroCEF.Url.AbsoluteUri.ToString().Substring(weBroCEF.Url.AbsoluteUri.ToString().IndexOf("=") + 1))))
+                            itemHtml.SetAttribute("selected", "selected");
+                    }
+
+                    foreach (HtmlElement item in weBroCEF.Document.GetElementsByTagName("a"))
+                    {
+                        if (item.OuterHtml.Contains("bt_buscar"))
+                        {
+                            item.InvokeMember("Click");
+                            break;
+                        }
+                    }
+                }
+                else
+                {
+                    StreamReader sr = new StreamReader(weBroCEF.DocumentStream, Encoding.GetEncoding("iso-8859-9"));
+                    string source = sr.ReadToEnd().Replace("\"", string.Empty).Replace("\n", " ").Replace("\r", " ").Replace("\t", " ");
+
+                    source = source.Substring(source.IndexOf("<div id=resultado_legislacao"));
+
+                    var listItens = Regex.Split(source, "<!-- CóDIGO RIO -->").ToList();
+
+                    listItens.RemoveAt(0);
+
+                    dynamic objUrll = new ExpandoObject();
+
+                    objUrll.Indexacao = "CEF - Caixa Econômica Federal";
+                    objUrll.Url = weBroCEF.Url.AbsoluteUri.ToString();
+                    objUrll.Lista_Nivel2 = new List<dynamic>();
+
+                    dynamic objItenUrl;
+
+                    foreach (var itemList in listItens)
+                    {
+                        objItenUrl = new ExpandoObject();
+
+                        var listInterno = Regex.Split(System.Net.WebUtility.UrlDecode(itemList), "<li>").ToList();
+
+                        listInterno.RemoveAt(0);
+                        string urlPdf = itemList.Substring(itemList.IndexOf("<a href=") + 8).Substring(0, itemList.Substring(itemList.IndexOf("<a href=") + 8).IndexOf(" ")).Replace("../../", "https://webp.caixa.gov.br/");
+
+                        objItenUrl.Url = string.Format("{0}|{1}|{2}|{3}|{4}", urlPdf, listInterno[0].Substring(0, listInterno[0].IndexOf("</li>")), listInterno[1].Substring(0, listInterno[1].IndexOf("</li>")), listInterno[2].Substring(0, listInterno[2].IndexOf("</li>")), listInterno[3].Substring(0, listInterno[3].IndexOf("</li>")));
+                        objUrll.Lista_Nivel2.Add(objItenUrl);
+                    }
+
+                    new BuscaLegalDao().AtualizarFontes(new List<dynamic>() { objUrll });
+
+                    foreach (HtmlElement item in weBroCEF.Document.GetElementsByTagName("a"))
+                    {
+                        if (item.OuterHtml.Contains("javascript: pesquisar('Proxima');"))
+                        {
+                            item.InvokeMember("Click");
+                            break;
+                        }
+                    }
+                }
+            }
+            catch (Exception)
+            {
+            }
+        }
+
+        private void Wb_DocumentCompleted_MPS(object sender, WebBrowserDocumentCompletedEventArgs e)
+        {
+            try
+            {
+                do { } while (((WebBrowser)sender).ReadyState == WebBrowserReadyState.Loading);
+
+                var webBro = ((WebBrowser)sender);
+
+                string htmlRaiz = webBro.DocumentText.Substring(webBro.DocumentText.IndexOf("<b>Status</b>")).Substring(0, webBro.DocumentText.Substring(webBro.DocumentText.IndexOf("<b>Status</b>")).IndexOf("</table>"));
+
+                dynamic objUrll = new ExpandoObject();
+
+                objUrll.Indexacao = "Ministério da Previdência Social";
+                objUrll.Url = ((WebBrowser)sender).Url.AbsoluteUri;
+                objUrll.Lista_Nivel2 = new List<dynamic>();
+
+                var listItemTR = Regex.Split(htmlRaiz, "<tr").ToList();
+
+                listItemTR.RemoveAt(0);
+
+                foreach (var itemTr in listItemTR)
+                {
+                    try
+                    {
+                        var itemListTD = Regex.Split(itemTr, "<td").ToList();
+                        itemListTD.RemoveAt(0);
+
+                        dynamic objItenUrl = new ExpandoObject();
+
+                        objItenUrl.Url = (itemListTD[2].Substring(itemListTD[2].IndexOf("href=") + 5).Substring(0, itemListTD[2].Substring(itemListTD[2].IndexOf("href=") + 5).IndexOf(" ")) + "|" +
+                                         new Facilities().ObterStringLimpa("<" + itemListTD[2]) + "|" +
+                                         new Facilities().ObterStringLimpa("<" + itemListTD[3]) + "|" +
+                                         new Facilities().ObterStringLimpa("<" + itemListTD[5]) + "|" +
+                                         new Facilities().ObterStringLimpa("<" + itemListTD[6])).Replace("./", "http://sislex.previdencia.gov.br/");
+
+                        objUrll.Lista_Nivel2.Add(objItenUrl);
+                    }
+                    catch (Exception)
+                    {
+                    }
+                }
+
+                new BuscaLegalDao().AtualizarFontes(new List<dynamic>() { objUrll });
+
+                HtmlElementCollection ColEle = webBro.Document.GetElementsByTagName("a");
+
+                bool next = false;
+
+                foreach (HtmlElement itemEl in ColEle)
+                {
+                    if (next)
+                    {
+                        itemEl.InvokeMember("Click");
+                        break;
+                    }
+
+                    else if (itemEl.OuterHtml.Replace("\"", string.Empty).Contains("intervalo=20 class=pag>[") || itemEl.OuterHtml.Replace("\"", string.Empty).Contains("intervalo=20>["))
+                        next = true;
+                }
+            }
+            catch (Exception)
+            {
+            }
+        }
+
+        private void Wb_DocumentCompleted_SefazRR(object sender, WebBrowserDocumentCompletedEventArgs e)
+        {
+            try
+            {
+                do { } while (((WebBrowser)sender).ReadyState == WebBrowserReadyState.Loading);
+
+                WebBrowser webBro = (WebBrowser)sender;
+
+                HtmlElementCollection ColEl = webBro.Document.GetElementsByTagName("a");
+
+                bool voltar = true;
+
+                HtmlElement voltarLink = null;
+
+                foreach (HtmlElement itemEl in ColEl)
+                {
+                    voltarLink = voltarLink == null ? itemEl : voltarLink;
+
+                    if (itemEl.OuterHtml.Replace("\\", string.Empty).Contains("javascript:gx.evt.execEvt('E'ABRIR'"))
+                    {
+                        if (!listNavegacao.Exists(x => x.Link.Equals(itemEl.OuterHtml)))
+                        {
+                            dynamic itemNavegacao = new ExpandoObject();
+
+                            itemNavegacao.Link = itemEl.OuterHtml;
+
+                            listNavegacao.Add(itemNavegacao);
+
+                            voltar = !voltar;
+
+                            itemEl.InvokeMember("Click");
+
+                            var webBroCH = new WebBrowser();
+
+                            webBroCH.DocumentCompleted += webBroCH_DocumentCompleted;
+                            webBroCH.Navigate("http://www.bet365.com");
+
+                            break;
+                        }
+                    }
+                }
+            }
+            catch (Exception)
+            {
+            }
+        }
+
+        private void webBroCH_DocumentCompleted(object sender, WebBrowserDocumentCompletedEventArgs e)
+        {
+            try
+            {
+                do { } while (((WebBrowser)sender).ReadyState == WebBrowserReadyState.Loading);
+
+                WebBrowser webBro = webBrowserSefazRR;
+
+                HtmlElementCollection ColEl = webBro.Document.GetElementsByTagName("a");
+
+                bool voltar = true;
+
+                HtmlElement voltarLink = null;
+
+                foreach (HtmlElement itemEl in ColEl)
+                {
+                    voltarLink = voltarLink == null ? itemEl : voltarLink;
+
+                    if (itemEl.OuterHtml.Replace("\\", string.Empty).Contains("javascript:gx.evt.execEvt('E'ABRIR'"))
+                    {
+                        if (!listNavegacao.Exists(x => x.Link.Equals(itemEl.OuterHtml)))
+                        {
+                            dynamic itemNavegacao = new ExpandoObject();
+
+                            itemNavegacao.Link = itemEl.OuterHtml;
+
+                            listNavegacao.Add(itemNavegacao);
+
+                            voltar = !voltar;
+
+                            itemEl.InvokeMember("Click");
+
+                            var webBroCH = new WebBrowser();
+
+                            webBroCH.DocumentCompleted += webBroCH_DocumentCompleted;
+                            webBroCH.Navigate("http://www.bet365.com");
+
+                            break;
+                        }
+                    }
+                    else if (itemEl.OuterHtml.Contains("Save.gif"))
+                    {
+                        string linkFinal = itemEl.OuterHtml.Substring(itemEl.OuterHtml.IndexOf("href=") + 5).Substring(0, itemEl.OuterHtml.Substring(itemEl.OuterHtml.IndexOf("href=") + 5).IndexOf(">"));
+
+                        dynamic objUrll = new ExpandoObject();
+
+                        objUrll.Indexacao = "Sefaz Roraima";
+                        objUrll.Url = "https://www.sefaz.rr.gov.br/repasse/servlet/wslistadocumentos";
+                        objUrll.Lista_Nivel2 = new List<dynamic>();
+
+                        dynamic objItenUrl = new ExpandoObject();
+
+                        objItenUrl.Url = linkFinal;
+                        objUrll.Lista_Nivel2.Add(objItenUrl);
+
+                        new BuscaLegalDao().AtualizarFontes(new List<dynamic>() { objUrll });
+                    }
+                }
+
+                if (voltar)
+                {
+                    if (voltarLink != null)
+                        voltarLink.InvokeMember("Click");
+
+                    var webBroCH = new WebBrowser();
+
+                    webBroCH.DocumentCompleted += webBroCH_DocumentCompleted;
+                    webBroCH.Navigate("http://www.bet365.com");
+                }
+            }
+            catch (Exception)
+            {
+            }
+        }
+
         private void BuscarNovaPage()
         {
             if (dataCorrente <= DateTime.Now)
             {
                 if (dataCorrente == new DateTime(2000, 01, 01))
                 {
-                    webBrowser1.Document.GetElementById("formPrincipal:dataAtoInicial_input").InnerText = dataCorrente.ToString("dd/MM/yyyy");
-                    webBrowser1.Document.GetElementById("formPrincipal:dataAtoFinal_input").InnerText = dataCorrente.AddYears(1).ToString("dd/MM/yyyy");
+                    webBrowserGERAL.Document.GetElementById("formPrincipal:dataAtoInicial_input").InnerText = dataCorrente.ToString("dd/MM/yyyy");
+                    webBrowserGERAL.Document.GetElementById("formPrincipal:dataAtoFinal_input").InnerText = dataCorrente.AddYears(1).ToString("dd/MM/yyyy");
 
                     dataCorrente = dataCorrente.AddYears(1);
                 }
                 else
                 {
-                    webBrowser1.Document.GetElementById("formPrincipal:dataAtoInicial_input").InnerText = dataCorrente.ToString("dd/MM/yyyy");
-                    webBrowser1.Document.GetElementById("formPrincipal:dataAtoFinal_input").InnerText = dataCorrente.ToString("dd/MM/yyyy");
+                    webBrowserGERAL.Document.GetElementById("formPrincipal:dataAtoInicial_input").InnerText = dataCorrente.ToString("dd/MM/yyyy");
+                    webBrowserGERAL.Document.GetElementById("formPrincipal:dataAtoFinal_input").InnerText = dataCorrente.ToString("dd/MM/yyyy");
                 }
 
-                label1.Text = "Processando dia: " + dataCorrente.ToString("dd/MM/yyyy") + " Em: " + DateTime.Now.ToString("HH:mm");
-
                 dataCorrente = dataCorrente.AddDays(1);
-                webBrowser1.Document.GetElementById("formPrincipal:btnPesq").InvokeMember("Click");
+                webBrowserGERAL.Document.GetElementById("formPrincipal:btnPesq").InvokeMember("Click");
             }
         }
 
         private void ProcessarBusca()
         {
-            string modoProcessamento = System.Configuration.ConfigurationSettings.AppSettings["modProc"].ToString();
+            string modoProcessamento = System.Configuration.ConfigurationManager.AppSettings["modProc"].ToString();
 
-            string siglaFonteProcessamento = System.Configuration.ConfigurationSettings.AppSettings["siglaFonteProcessamento"].ToString();
+            string siglaFonteProcessamento = System.Configuration.ConfigurationManager.AppSettings["siglaFonteProcessamento"].ToString();
 
             List<dynamic> listaUrl = new List<dynamic>();
 
@@ -813,9 +1321,9 @@ namespace Systax_BuscaLegal
 
             #region "Captura URL's"
 
-            if (modoProcessamento.Equals("f") || modoProcessamento.Equals("u1"))
+            if (modoProcessamento.Equals("f") || modoProcessamento.Equals("u"))
             {
-                string resposta = getHtmlPaginaByGet("http://idg.receita.fazenda.gov.br/acesso-rapido/legislacao", string.Empty);
+                string resposta = new Facilities().getHtmlPaginaByGet("http://idg.receita.fazenda.gov.br/acesso-rapido/legislacao", string.Empty);
 
                 resposta = System.Net.WebUtility.HtmlDecode(resposta.Replace("\n", " ").Replace("\r", " ").Replace("\t", " "));
 
@@ -856,11 +1364,17 @@ namespace Systax_BuscaLegal
 
                     while (true)
                     {
+                        dynamic complementoRFB_ = new ExpandoObject();
+
+                        complementoRFB_.Indexacao = itemUrl.Indexacao;
+                        complementoRFB_.Url = itemUrl.Url;
+                        complementoRFB_.Lista_Nivel2 = new List<dynamic>();
+
                         string urlTratada = itemUrl.Url.Replace("&p=1", string.Empty) + "&p=" + count.ToString();
 
                         try
                         {
-                            string respostaNivel2 = getHtmlPaginaByGet(urlTratada, string.Empty);
+                            string respostaNivel2 = new Facilities().getHtmlPaginaByGet(urlTratada, string.Empty);
 
                             respostaNivel2 = System.Net.WebUtility.HtmlDecode(respostaNivel2/*.ToLower()*/.Replace("\"", "").Replace("\n", " ").Replace("\r", " ").Replace("\t", " "));
 
@@ -884,13 +1398,18 @@ namespace Systax_BuscaLegal
 
                                     dynamic itemLista_Nivel2 = new ExpandoObject();
 
-                                    itemLista_Nivel2.Url = url;
+                                    itemLista_Nivel2.Url = url + "|"
+                                                               + new Facilities().ObterStringLimpa("<" + listaNivel2_1[1].Trim()) + "|"
+                                                               + new Facilities().ObterStringLimpa("<" + listaNivel2_1[2].Trim()) + "|"
+                                                               + new Facilities().ObterStringLimpa("<" + listaNivel2_1[3].Trim()) + "-" + listaNivel2_1[3].Trim().Substring(listaNivel2_1[3].Trim().IndexOf("title=") + 6).Substring(0, listaNivel2_1[3].Trim().Substring(listaNivel2_1[3].Trim().IndexOf("title=") + 6).IndexOf(">")) + "|"
+                                                               + new Facilities().ObterStringLimpa("<" + listaNivel2_1[4].Trim()) + "|"
+                                                               + new Facilities().ObterStringLimpa("<" + listaNivel2_1[5].Trim().Replace("\n", " ").Replace("\t", " ").Replace("\r", " "));
 
-                                    itemUrl.Lista_Nivel2.Add(itemLista_Nivel2);
+                                    complementoRFB_.Lista_Nivel2.Add(itemLista_Nivel2);
                                 }
                             });
                         }
-                        catch (Exception)
+                        catch (Exception ex)
                         {
                             //new BuscaLegalDao().InserirLogErro(ex, urlTratada, string.Format("{0}|{1}|{2}|{3}|{4}|{5}", "Captura URL DOC", TipoAto, NrAto, OrgaoUnid, Publicacao, Ementa));
                         }
@@ -898,11 +1417,11 @@ namespace Systax_BuscaLegal
                         count++;
 
                         //Thread.Sleep(int.Parse(System.Configuration.ConfigurationSettings.AppSettings["timeSleep"].ToString()));
-                        Thread.Sleep(1000);
+                        Thread.Sleep(2000);
+
+                        new BuscaLegalDao().AtualizarFontes(new List<dynamic>() { complementoRFB_ });
                     }
                 }
-
-                new BuscaLegalDao().AtualizarFontes(listaUrl);
             }
 
             #endregion
@@ -923,233 +1442,6 @@ namespace Systax_BuscaLegal
                     {
                         try
                         {
-                            #region "OLD"
-                            //dynamic itemListaVez = new ExpandoObject();
-
-                            //itemListaVez.ListaEmenta = new List<dynamic>();
-
-                            ///*Estudar como iremos gerar a fila dos docs a partir daqui*/
-                            //urlTratada = itemLista_Nivel2.Url;
-
-                            //itemListaVez.Url = urlTratada;
-
-                            //itemListaVez.IdUrl = itemLista_Nivel2.IdUrl;
-
-                            //string respostaNivel2_ = getHtmlPaginaByGet(urlTratada, string.Empty);
-
-                            //respostaNivel2_ = System.Net.WebUtility.HtmlDecode(respostaNivel2_.Replace("\"", "").Replace("\n", " ").Replace("\r", " ").Replace("\t", " "));
-
-                            ///*Captura CSS*/
-                            //var listaCss = Regex.Split(respostaNivel2_, "<link").ToList();
-
-                            //listaCss.RemoveAt(0);
-
-                            //listaCssTratada = new List<string>();
-
-                            //string novaCss = string.Empty;
-
-                            //listaCss.ForEach(delegate(string x)
-                            //{
-                            //    novaCss = string.Format("{0}{1}", "<link", x.Substring(0, x.IndexOf(">") + 1));
-
-                            //    novaCss = novaCss.Insert(novaCss.IndexOf("href=") + 5, ("http://" + urlTratada.Substring(urlTratada.IndexOf("//") + 2).Substring(0, urlTratada.Substring(urlTratada.IndexOf("//") + 2).IndexOf("/"))));
-
-                            //    listaCssTratada.Add(novaCss);
-                            //});
-
-                            //novaCss = string.Empty;
-
-                            //listaCssTratada.ForEach(x => novaCss += x);
-
-                            ///*Fim Captura CSS*/
-
-                            //dynamic dadosEmenta = new ExpandoObject();
-
-                            ///*TituloAto*/
-                            //posicao = respostaNivel2_.IndexOf("<div class=divTituloAto >") + "<div class=divTituloAto >".Length;
-
-                            //aux = respostaNivel2_.Substring(posicao);
-
-                            ///*Espécie do Ato*/
-                            //var aux1 = aux.Substring((aux.IndexOf("<div class=left>") + "<div class=left>".Length), (aux.IndexOf("<span style=cursor: default; title=") - (aux.IndexOf("<div class=left>") + "<div class=left>".Length)));
-
-                            //dadosEmenta.Especie = aux1.Trim();
-
-                            ///*Descricao Sigla do Ato*/
-                            //var aux2 = aux.Substring(aux.IndexOf("<span style=cursor: default; title=") + "<span style=cursor: default; title=".Length).Substring(0, aux.Substring(aux.IndexOf("<span style=cursor: default; title=") + "<span style=cursor: default; title=".Length).IndexOf(">"));
-
-                            //dadosEmenta.DescSigla = aux2.Trim();
-
-                            ///*Sigla do Ato*/
-                            //var aux3 = aux.Substring(aux.IndexOf("<span style=cursor: default; title=") + "<span style=cursor: default; title=".Length).Substring(aux.Substring(aux.IndexOf("<span style=cursor: default; title=") + "<span style=cursor: default; title=".Length).IndexOf(">") + 1, aux.Substring(aux.IndexOf("<span style=cursor: default; title=") + "<span style=cursor: default; title=".Length).IndexOf("</span>") - (aux.Substring(aux.IndexOf("<span style=cursor: default; title=") + "<span style=cursor: default; title=".Length).IndexOf(">") + 1));
-
-                            //dadosEmenta.Sigla = aux3.Trim();
-
-                            ///*Nº e Data de Edição*/
-                            //var aux4 = aux.Substring(aux.IndexOf("<!-- FIM: iterator atoOrgaos -->") + "<!-- FIM: iterator atoOrgaos -->".Length, aux.IndexOf("</div>") - (aux.IndexOf("<!-- FIM: iterator atoOrgaos -->") + "<!-- FIM: iterator atoOrgaos -->".Length));
-
-                            //dadosEmenta.NumeroAto = aux4.Split(',')[0].Replace("nº", string.Empty).Trim();
-                            //dadosEmenta.DataEdicao = aux4.Split(',')[1].Trim().Substring(3);
-
-                            ///*Anexos existentes no Ato*/
-
-                            //var listaArquivos = new List<string>();
-
-                            //dadosEmenta.ListaArquivos = new List<ArquivoUpload>();
-
-                            //if (respostaNivel2_.IndexOf("anexoOutros.action?idArquivoBinario") >= 0)
-                            //{
-                            //    string aux5 = respostaNivel2_.Substring(respostaNivel2_.IndexOf("anexoOutros.action?idArquivoBinario"));
-                            //    int indexNovo = 0;
-
-                            //    while (aux5.IndexOf("anexoOutros.action?idArquivoBinario=") >= 0)
-                            //    {
-                            //        indexNovo = aux5.IndexOf("anexoOutros.action?idArquivoBinario=");
-
-                            //        aux5 = aux5.Substring(indexNovo + "anexoOutros.action?idArquivoBinario=".Length);
-
-                            //        if (!aux5.Substring(0, aux5.IndexOf("</a>")).Split('>')[0].Equals("0"))
-                            //            listaArquivos.Add("anexoOutros.action?idArquivoBinario=" + aux5.Substring(0, aux5.IndexOf("</a>")).Split('>')[0] + "|" + aux5.Substring(0, aux5.IndexOf("</a>")).Split('>')[1]);
-                            //    }
-
-                            //    listaArquivos.ForEach(delegate(string x)
-                            //    {
-                            //        string nomeArq = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory.ToString(), x.Split('|')[1]);
-
-                            //        using (WebClient webClient = new WebClient())
-                            //        {
-                            //            webClient.DownloadFile(urlTratada.Substring(0, urlTratada.LastIndexOf("/")) + "/" + x.Split('|')[0], nomeArq);
-                            //        }
-
-                            //        string dadosPdf = LeArquivo(nomeArq);
-
-                            //        byte[] arrayFile = File.ReadAllBytes(nomeArq);
-
-                            //        dadosEmenta.ListaArquivos.Add(new ArquivoUpload() { conteudoArquivo = arrayFile, ExtensaoArquivo = nomeArq.Substring(nomeArq.LastIndexOf(".") + 1), NomeArquivo = x.Split('|')[1] });
-
-                            //        File.Delete(nomeArq);
-                            //    });
-                            //}
-
-                            //aux = aux.Substring(0, aux.IndexOf("<!-- INICIO: Menu - Vis"));
-
-                            //string txtTitulo = string.Empty;
-                            //bool keyTitulo = false;
-
-                            ///*Isolar essa parte em uma nova função*/
-                            //aux.ToList().ForEach(delegate(char x) { keyTitulo = x.ToString().Equals("<") || (keyTitulo && !x.ToString().Equals(">")); txtTitulo += !keyTitulo && !x.ToString().Equals(">") ? x.ToString() : string.Empty; });
-
-                            //dadosEmenta.TituloAto = Regex.Replace(txtTitulo.Trim(), @"\s+", " ");
-
-                            ///*Publicacao*/
-                            //posicao = respostaNivel2_.IndexOf("class=left cleft") + "class=left cleft".Length;
-
-                            //aux = respostaNivel2_.Substring(posicao);
-                            //aux = aux.Substring(aux.IndexOf(">") + 1);
-                            //aux = aux.Substring(0, aux.IndexOf("<"));
-
-                            //dadosEmenta.Publicacao = aux;
-                            //dadosEmenta.Republicacao = string.Empty;
-                            //dadosEmenta.Escopo = "FED";
-                            //dadosEmenta.IdFila = itemLista_Nivel2.Id;
-
-                            ///*Ementa*/
-                            //posicao = respostaNivel2_.IndexOf("<div id=divTexto>") + "<div id=divTexto>".Length;
-
-                            //posicao = (respostaNivel2_.Substring(posicao).Contains("p class=ementa") ? respostaNivel2_.IndexOf("p class=ementa") + "p class=ementa".Length : posicao);
-
-                            //aux = respostaNivel2_.Substring(posicao).Replace("<strike>", string.Empty).Replace("</strike>", string.Empty);
-                            //aux = aux.Substring(aux.IndexOf(">") + 1);
-                            //aux = aux.Substring(0, (aux.IndexOf("</p>") >= 0 ? aux.IndexOf("</p>") : aux.IndexOf("</span>")));
-
-                            ///*Isolar essa parte em uma nova função*/
-                            //bool key = false;
-                            //string texto = string.Empty;
-
-                            ///*Isolar essa parte em uma nova função*/
-                            //aux.ToList().ForEach(delegate(char x) { key = x.ToString().Equals("<") || (key && !x.ToString().Equals(">")); texto += !key && !x.ToString().Equals(">") ? x.ToString() : string.Empty; });
-
-                            //dadosEmenta.Ementa = texto;
-
-                            ///*Criacao Metadado e Hash*/
-
-                            //dadosEmenta.Metadado = "{" + string.Format("\"UF\":\"{0}\"", "FED") + "}";
-
-                            ////dadosEmenta.Hash = this.GerarHash(dadosEmenta.Metadado);
-
-                            //dadosEmenta.HasContent = false;
-                            ///*Fim - Criacao Metadado e Hash*/
-
-                            ///*Texto*/
-                            //dadosEmenta.Texto = respostaNivel2_.Substring(respostaNivel2_.IndexOf("<div class=divTituloAto >"), respostaNivel2_.LastIndexOf("class=divSegmentos") - respostaNivel2_.IndexOf("<div class=divTituloAto >"));
-
-                            //dadosEmenta.Texto = removeTagScript(dadosEmenta.Texto);
-
-                            //dadosEmenta.Hash = this.GerarHash(removerCaracterEspecial(obterTextoConteudo(dadosEmenta.Texto + ">", 3)));
-
-                            //dadosEmenta.Texto = novaCss + dadosEmenta.Texto;
-
-                            ///*Tipo Texto*/
-                            //dadosEmenta.Tipo = 3;
-
-                            //itemListaVez.ListaEmenta.Add(dadosEmenta);
-
-                            ///*Obtendo as demais variações do Texto*/
-
-                            ///*1 - Original*/
-                            //respostaNivel2_ = getHtmlPaginaByGet(urlTratada.Replace("anotado", "original"), string.Empty);
-
-                            //respostaNivel2_ = System.Net.WebUtility.HtmlDecode(respostaNivel2_/*.ToLower()*/.Replace("\"", "").Replace("\n", " ").Replace("\r", " ").Replace("\t", " "));
-
-                            ///*Validar se o marca-inico e fim são iguais*/
-                            //respostaNivel2_ = respostaNivel2_.Substring(respostaNivel2_.IndexOf("<div class=divTituloAto >"), respostaNivel2_.LastIndexOf("class=divSegmentos") - respostaNivel2_.IndexOf("<div class=divTituloAto >"));
-                            //var hashComparacao = this.GerarHash(removerCaracterEspecial(obterTextoConteudo(removeTagScript(respostaNivel2_), 1)));
-
-                            ///*Caso conteúdos dos documentos forem iguais não inserimos as variações dos documentos*/
-                            //if (!hashComparacao.Equals(dadosEmenta.Hash))
-                            //{
-                            //    dadosEmenta = new ExpandoObject();
-
-                            //    dadosEmenta.ListaArquivos = new List<ArquivoUpload>();
-
-                            //    dadosEmenta.Texto = novaCss + respostaNivel2_;
-                            //    dadosEmenta.Hash = hashComparacao;
-                            //    dadosEmenta.HasContent = false;
-                            //    dadosEmenta.Tipo = 1;
-
-                            //    itemListaVez.ListaEmenta.Add(dadosEmenta);
-
-                            //    /*2 - Vigente*/
-                            //    respostaNivel2_ = getHtmlPaginaByGet(urlTratada.Replace("anotado", "compilado"), string.Empty);
-
-                            //    respostaNivel2_ = System.Net.WebUtility.HtmlDecode(respostaNivel2_/*.ToLower()*/.Replace("\"", "").Replace("\n", " ").Replace("\r", " ").Replace("\t", " "));
-
-                            //    /*Validar se o marca-inico e fim são iguais*/
-                            //    respostaNivel2_ = respostaNivel2_.Substring(respostaNivel2_.IndexOf("<div class=divTituloAto >"), respostaNivel2_.LastIndexOf("class=divSegmentos") - respostaNivel2_.IndexOf("<div class=divTituloAto >"));
-
-                            //    dadosEmenta = new ExpandoObject();
-
-                            //    dadosEmenta.ListaArquivos = new List<ArquivoUpload>();
-
-                            //    dadosEmenta.Texto = novaCss + respostaNivel2_;
-                            //    dadosEmenta.Hash = this.GerarHash(removerCaracterEspecial(obterTextoConteudo(respostaNivel2_, 2)));
-                            //    dadosEmenta.HasContent = false;
-                            //    dadosEmenta.Tipo = 2;
-
-                            //    itemListaVez.ListaEmenta.Add(dadosEmenta);
-                            //}
-
-                            //dynamic listaNivel2Nova = new ExpandoObject();
-
-                            //listaNivel2Nova.Lista_Nivel2 = new List<dynamic>() { itemListaVez };
-
-                            //new BuscaLegalDao().AtualizarFontes(new List<dynamic>() { listaNivel2Nova });
-
-                            //Thread.Sleep(1000);
-                            #endregion
-
-                            #region "New"
-
                             dynamic itemListaVez = new ExpandoObject();
 
                             itemListaVez.ListaEmenta = new List<dynamic>();
@@ -1160,7 +1452,7 @@ namespace Systax_BuscaLegal
 
                             itemListaVez.IdUrl = itemLista_Nivel2.IdUrl;
 
-                            string respostaNivel2_ = getHtmlPaginaByGet(urlTratada, string.Empty);
+                            string respostaNivel2_ = new Facilities().getHtmlPaginaByGet(urlTratada.Split('|')[0], string.Empty);
 
                             respostaNivel2_ = System.Net.WebUtility.HtmlDecode(respostaNivel2_.Replace("\"", string.Empty).Replace("\n", " ").Replace("\r", " ").Replace("\t", " "));
 
@@ -1193,7 +1485,8 @@ namespace Systax_BuscaLegal
                                 continue;
                             }
 
-                            List<string> listFrameWork = new List<string>() { (indexInicial >= 0 ? indexInicial.ToString() + "|<div id=divRodape|<div class=left|<span class=right visoes|<span class=left cleft|</span>|<p class=ementa|</p>" : "-1") };
+                            List<string> listFrameWork = new List<string>() { (indexInicial >= 0 && respostaNivel2_.ToLower().IndexOf("<p class=ementa") >= 0 ? indexInicial.ToString() + "|<div id=divRodape|<div class=left|<span class=right visoes|<span class=left cleft|</span>|<p class=ementa|</p>" : "-1")
+                                                                             ,(indexInicial >= 0 && respostaNivel2_.ToLower().IndexOf("<p class=tachado ementa") >= 0 ? indexInicial.ToString() + "|<div id=divRodape|<div class=left|<span class=right visoes|<span class=left cleft|</span>|<p class=tachado ementa|</p>" : "-1")};
 
                             listFrameWork.RemoveAll(x => x.Contains("-1"));
 
@@ -1235,7 +1528,7 @@ namespace Systax_BuscaLegal
                                         webClient.DownloadFile(urlTratada.Substring(0, urlTratada.LastIndexOf("/")) + "/" + x.Split('|')[0], nomeArq);
                                     }
 
-                                    //string dadosPdf = LeArquivo(nomeArq);
+                                    //string dadosPdf =new Facilities().LeArquivo(nomeArq);
 
                                     byte[] arrayFile = File.ReadAllBytes(nomeArq);
 
@@ -1248,36 +1541,52 @@ namespace Systax_BuscaLegal
 
                             textoTratado = respostaNivel2_.Substring(int.Parse(listFrameWork[0].Split('|')[0])).Substring(0, respostaNivel2_.Substring(int.Parse(listFrameWork[0].Split('|')[0])).IndexOf(listFrameWork[0].Split('|')[1]));
 
-                            dadosEmenta.TituloAto = ObterStringLimpa(textoTratado.Substring(textoTratado.IndexOf(listFrameWork[0].Split('|')[2])).Substring(0, textoTratado.Substring(textoTratado.IndexOf(listFrameWork[0].Split('|')[2])).IndexOf(listFrameWork[0].Split('|')[3])));
-                            dadosEmenta.Especie = dadosEmenta.TituloAto.Contains(" ") ? dadosEmenta.TituloAto.Substring(0, dadosEmenta.TituloAto.IndexOf(" ")) : dadosEmenta.TituloAto;
-                            dadosEmenta.DescSigla = "Receita Federal do Brasil";
-                            dadosEmenta.Sigla = "RFB";
+                            var itensMetaDados = urlTratada.Split('|').ToList();
 
-                            string numero = string.Empty;
-                            string TituloAto = dadosEmenta.TituloAto;
+                            if (itensMetaDados.Count > 1)
+                            {
+                                dadosEmenta.TituloAto = itensMetaDados[1] + " " + itensMetaDados[3].Split('-')[0] + " Nº " + itensMetaDados[2];
+                                dadosEmenta.Especie = itensMetaDados[1];
+                                dadosEmenta.DescSigla = itensMetaDados[3].Split('-')[1];
+                                dadosEmenta.Sigla = itensMetaDados[3].Split('-')[0];
 
-                            TituloAto.Replace(".", string.Empty).ToList().ForEach(delegate(char x) { numero += char.IsNumber(x) && (numero.Equals(string.Empty) || !numero.Contains(".")) ? x.ToString() : numero.Equals(string.Empty) ? string.Empty : "."; });
+                                dadosEmenta.NumeroAto = Regex.Replace(itensMetaDados[2], "[^0-9]+", string.Empty);
+                                dadosEmenta.Publicacao = itensMetaDados[4];
+                                dadosEmenta.Ementa = itensMetaDados[5];
+                            }
+                            else
+                            {
+                                dadosEmenta.TituloAto = new Facilities().ObterStringLimpa(textoTratado.Substring(textoTratado.IndexOf(listFrameWork[0].Split('|')[2])).Substring(0, textoTratado.Substring(textoTratado.IndexOf(listFrameWork[0].Split('|')[2])).IndexOf(listFrameWork[0].Split('|')[3])));
+                                dadosEmenta.Especie = dadosEmenta.TituloAto.Contains(" ") ? dadosEmenta.TituloAto.Substring(0, dadosEmenta.TituloAto.IndexOf(" ")) : dadosEmenta.TituloAto;
+                                dadosEmenta.DescSigla = "Receita Federal do Brasil";
+                                dadosEmenta.Sigla = "RFB";
 
-                            if (numero.Equals(string.Empty))
-                                numero = "0";
+                                string numero = string.Empty;
+                                string TituloAto = dadosEmenta.TituloAto;
 
-                            dadosEmenta.NumeroAto = Regex.Replace(numero, "[^0-9]+", string.Empty);
-                            dadosEmenta.DataEdicao = string.Empty;
-                            dadosEmenta.Publicacao = ObterStringLimpa(textoTratado.Substring(textoTratado.IndexOf(listFrameWork[0].Split('|')[4])).Substring(0, textoTratado.Substring(textoTratado.IndexOf(listFrameWork[0].Split('|')[4])).IndexOf(listFrameWork[0].Split('|')[5]))); ;
+                                TituloAto.Replace(".", string.Empty).ToList().ForEach(delegate(char x) { numero += char.IsNumber(x) && (numero.Equals(string.Empty) || !numero.Contains(".")) ? x.ToString() : numero.Equals(string.Empty) ? string.Empty : "."; });
+                                if (numero.Equals(string.Empty))
+                                    numero = "0";
+
+                                dadosEmenta.NumeroAto = Regex.Replace(numero, "[^0-9]+", string.Empty);
+                                dadosEmenta.Publicacao = new Facilities().ObterStringLimpa(textoTratado.Substring(textoTratado.IndexOf(listFrameWork[0].Split('|')[4])).Substring(0, textoTratado.Substring(textoTratado.IndexOf(listFrameWork[0].Split('|')[4])).IndexOf(listFrameWork[0].Split('|')[5]))); ;
+                                dadosEmenta.Ementa = new Facilities().ObterStringLimpa(textoTratado.Substring(textoTratado.IndexOf(listFrameWork[0].Split('|')[6])).Substring(0, textoTratado.Substring(textoTratado.IndexOf(listFrameWork[0].Split('|')[6])).IndexOf(listFrameWork[0].Split('|')[7]))); ;
+                            }
+
+                            dadosEmenta.Metadado = "{" + string.Format("\"UF\":\"{0}\"", "FED") + "}";
                             dadosEmenta.Republicacao = string.Empty;
                             dadosEmenta.Escopo = "FED";
+                            dadosEmenta.DataEdicao = string.Empty;
                             dadosEmenta.IdFila = itemLista_Nivel2.Id;
-                            dadosEmenta.Ementa = ObterStringLimpa(textoTratado.Substring(textoTratado.IndexOf(listFrameWork[0].Split('|')[6])).Substring(0, textoTratado.Substring(textoTratado.IndexOf(listFrameWork[0].Split('|')[6])).IndexOf(listFrameWork[0].Split('|')[7]))); ;
-                            dadosEmenta.Metadado = "{" + string.Format("\"UF\":\"{0}\"", "FED") + "}";
 
                             dadosEmenta.HasContent = false;
                             /*Fim - Criacao Metadado e Hash*/
 
                             /*Texto*/
                             dadosEmenta.Texto = textoTratado;
-                            dadosEmenta.Texto = removeTagScript(dadosEmenta.Texto);
+                            dadosEmenta.Texto = new Facilities().removeTagScript(dadosEmenta.Texto);
 
-                            dadosEmenta.Hash = this.GerarHash(removerCaracterEspecial(dadosEmenta.Texto + ">"));
+                            dadosEmenta.Hash = new Facilities().GerarHash(new Facilities().removerCaracterEspecial(dadosEmenta.Texto + ">"));
                             dadosEmenta.Texto = novaCss + dadosEmenta.Texto;
 
                             /*Tipo Texto*/
@@ -1285,63 +1594,62 @@ namespace Systax_BuscaLegal
 
                             itemListaVez.ListaEmenta.Add(dadosEmenta);
 
-                            /*Obtendo as demais variações do Texto*/
-                            /*1 - Original*/
-                            respostaNivel2_ = getHtmlPaginaByGet(urlTratada.Replace("anotado", "original"), string.Empty);
-                            respostaNivel2_ = System.Net.WebUtility.HtmlDecode(respostaNivel2_.Replace("\"", string.Empty).Replace("\n", " ").Replace("\r", " ").Replace("\t", " "));
+                            ///*Obtendo as demais variações do Texto*/
+                            ///*1 - Original*/
+                            //respostaNivel2_ = new Facilities().getHtmlPaginaByGet(urlTratada.Replace("anotado", "original"), string.Empty);
+                            //respostaNivel2_ = System.Net.WebUtility.HtmlDecode(respostaNivel2_.Replace("\"", string.Empty).Replace("\n", " ").Replace("\r", " ").Replace("\t", " "));
 
-                            indexInicial = respostaNivel2_.ToLower().IndexOf("<div class=divtituloato");
+                            //indexInicial = respostaNivel2_.ToLower().IndexOf("<div class=divtituloato");
 
-                            listFrameWork = new List<string>(){( indexInicial >= 0 ? indexInicial.ToString() + "|<div id=divRodape|<div class=left|<span class=right visoes|<span class=left cleft|</span>|<p class=ementa|</p>" : "-1")
-                                                               ,"-1"
-                                                               ,"-1"
-                                                               ,"-1"};
+                            //listFrameWork = new List<string>() { (indexInicial >= 0 && respostaNivel2_.ToLower().IndexOf("<p class=ementa") >= 0 ? indexInicial.ToString() + "|<div id=divRodape|<div class=left|<span class=right visoes|<span class=left cleft|</span>|<p class=ementa|</p>" : "-1")
+                            //                                    ,(indexInicial >= 0 && respostaNivel2_.ToLower().IndexOf("<p class=tachado ementa") >= 0 ? indexInicial.ToString() + "|<div id=divRodape|<div class=left|<span class=right visoes|<span class=left cleft|</span>|<p class=tachado ementa|</p>" : "-1")};
 
-                            listFrameWork.RemoveAll(x => x.Contains("-1"));
+                            //listFrameWork.RemoveAll(x => x.Contains("-1"));
 
-                            if (listFrameWork.Count <= 0)
-                            {
-                                itensNaoMapeados.Add(urlTratada);
-                                continue;
-                            }
+                            //if (listFrameWork.Count == 0)
+                            //{
+                            //    itensNaoMapeados.Add("Parcial " + urlTratada);
+                            //}
+                            //else
+                            //{
+                            //    respostaNivel2_ = respostaNivel2_.Substring(int.Parse(listFrameWork[0].Split('|')[0])).Substring(0, respostaNivel2_.Substring(int.Parse(listFrameWork[0].Split('|')[0])).IndexOf(listFrameWork[0].Split('|')[1]));
+                            //    var hashComparacao = new Facilities().GerarHash(new Facilities().removerCaracterEspecial(new Facilities().removeTagScript(respostaNivel2_)));
 
-                            respostaNivel2_ = respostaNivel2_.Substring(int.Parse(listFrameWork[0].Split('|')[0])).Substring(0, respostaNivel2_.Substring(int.Parse(listFrameWork[0].Split('|')[0])).IndexOf(listFrameWork[0].Split('|')[1]));
-                            var hashComparacao = this.GerarHash(removerCaracterEspecial(removeTagScript(respostaNivel2_)));
+                            //    /*Caso conteúdos dos documentos forem iguais não inserimos as variações dos documentos*/
+                            //    if (!hashComparacao.Equals(dadosEmenta.Hash))
+                            //    {
+                            //        dadosEmenta = new ExpandoObject();
 
-                            /*Caso conteúdos dos documentos forem iguais não inserimos as variações dos documentos*/
-                            if (!hashComparacao.Equals(dadosEmenta.Hash))
-                            {
-                                dadosEmenta = new ExpandoObject();
+                            //        dadosEmenta.ListaArquivos = new List<ArquivoUpload>();
 
-                                dadosEmenta.ListaArquivos = new List<ArquivoUpload>();
+                            //        dadosEmenta.Texto = novaCss + respostaNivel2_;
+                            //        dadosEmenta.Hash = hashComparacao;
+                            //        dadosEmenta.HasContent = false;
+                            //        dadosEmenta.Tipo = 1;
 
-                                dadosEmenta.Texto = novaCss + respostaNivel2_;
-                                dadosEmenta.Hash = hashComparacao;
-                                dadosEmenta.HasContent = false;
-                                dadosEmenta.Tipo = 1;
+                            //        itemListaVez.ListaEmenta.Add(dadosEmenta);
 
-                                itemListaVez.ListaEmenta.Add(dadosEmenta);
+                            //        /*2 - Vigente*/
+                            //        respostaNivel2_ = new Facilities().getHtmlPaginaByGet(urlTratada.Replace("anotado", "compilado"), string.Empty);
+                            //        respostaNivel2_ = System.Net.WebUtility.HtmlDecode(respostaNivel2_.Replace("\"", "").Replace("\n", " ").Replace("\r", " ").Replace("\t", " "));
 
-                                /*2 - Vigente*/
-                                respostaNivel2_ = getHtmlPaginaByGet(urlTratada.Replace("anotado", "compilado"), string.Empty);
-                                respostaNivel2_ = System.Net.WebUtility.HtmlDecode(respostaNivel2_.Replace("\"", "").Replace("\n", " ").Replace("\r", " ").Replace("\t", " "));
+                            //        if (!respostaNivel2_.Contains("Sua sessão expirou ou você não tem permissão para acessar esse conteúdo"))
+                            //        {
+                            //            respostaNivel2_ = respostaNivel2_.Substring(int.Parse(listFrameWork[0].Split('|')[0])).Substring(0, respostaNivel2_.Substring(int.Parse(listFrameWork[0].Split('|')[0])).IndexOf(listFrameWork[0].Split('|')[1]));
 
-                                if (!respostaNivel2_.Contains("Sua sessão expirou ou você não tem permissão para acessar esse conteúdo"))
-                                {
-                                    respostaNivel2_ = respostaNivel2_.Substring(int.Parse(listFrameWork[0].Split('|')[0])).Substring(0, respostaNivel2_.Substring(int.Parse(listFrameWork[0].Split('|')[0])).IndexOf(listFrameWork[0].Split('|')[1]));
+                            //            dadosEmenta = new ExpandoObject();
 
-                                    dadosEmenta = new ExpandoObject();
+                            //            dadosEmenta.ListaArquivos = new List<ArquivoUpload>();
 
-                                    dadosEmenta.ListaArquivos = new List<ArquivoUpload>();
+                            //            dadosEmenta.Texto = novaCss + respostaNivel2_;
+                            //            dadosEmenta.Hash = new Facilities().GerarHash(new Facilities().removerCaracterEspecial(respostaNivel2_));
+                            //            dadosEmenta.HasContent = false;
+                            //            dadosEmenta.Tipo = 2;
 
-                                    dadosEmenta.Texto = novaCss + respostaNivel2_;
-                                    dadosEmenta.Hash = this.GerarHash(removerCaracterEspecial(respostaNivel2_));
-                                    dadosEmenta.HasContent = false;
-                                    dadosEmenta.Tipo = 2;
-
-                                    itemListaVez.ListaEmenta.Add(dadosEmenta);
-                                }
-                            }
+                            //            itemListaVez.ListaEmenta.Add(dadosEmenta);
+                            //        }
+                            //    }
+                            //}
 
                             dynamic listaNivel2Nova = new ExpandoObject();
 
@@ -1349,9 +1657,7 @@ namespace Systax_BuscaLegal
 
                             new BuscaLegalDao().AtualizarFontes(new List<dynamic>() { listaNivel2Nova });
 
-                            Thread.Sleep(1000);
-
-                            #endregion
+                            Thread.Sleep(1500);
                         }
                         catch (Exception)
                         {
@@ -1361,7 +1667,7 @@ namespace Systax_BuscaLegal
                     }
                 }
 
-                string novoNcm = "TITULO\n";
+                string novoNcm = "URL\n";
                 itensNaoMapeados.ForEach(x => novoNcm += x.Replace("\n", "|") + "\n");
                 File.WriteAllText(@"C:\Temp\UrlErrosRFB.csv", novoNcm);
             }
@@ -1487,10 +1793,6 @@ namespace Systax_BuscaLegal
             /*Nível Obter a Url -> Obter link do arquivo e o download do arquivo*/
             if ((modoProcessamento.Equals("f") || modoProcessamento.Equals("d")) && siglaFonteProcessamento.Equals("cvm"))
             {
-                this.Text = "Fonte: CVM";
-
-                this.label1.Text = "Processando";
-
                 try
                 {
                     List<dynamic> listaProcessamento = new BuscaLegalDao().ObterUrlsParaProcessamento("cvm");
@@ -1506,7 +1808,7 @@ namespace Systax_BuscaLegal
                             StreamReader reader = new StreamReader(dataStream);
                             string resposta = reader.ReadToEnd();
 
-                            //string resposta = getHtmlPaginaByGet(itemUrl.Url, string.Empty);
+                            //string resposta =new Facilities().getHtmlPaginaByGet(itemUrl.Url, string.Empty);
 
                             resposta = System.Net.WebUtility.HtmlDecode(resposta.Replace("\n", " ").Replace("\r", " ").Replace("\t", " ")).Replace("\"", " ");
 
@@ -1546,7 +1848,7 @@ namespace Systax_BuscaLegal
                                 webClient.DownloadFile(urlCVM, nomeArq);
                             }
 
-                            string dadosPdf = LeArquivo(nomeArq);
+                            string dadosPdf = new Facilities().LeArquivo(nomeArq);
 
                             //byte[] arrayFile = File.ReadAllBytes(nomeArq);
 
@@ -1587,7 +1889,7 @@ namespace Systax_BuscaLegal
                             itemListaEmenta.Texto = dadosPdf;
                             itemListaEmenta.Tipo = 3;
                             itemListaEmenta.Metadado = "{" + string.Format("\"UF\":\"{0}\"", "FED") + "}";
-                            itemListaEmenta.Hash = this.GerarHash(removerCaracterEspecial(dadosPdf));
+                            itemListaEmenta.Hash = new Facilities().GerarHash(new Facilities().removerCaracterEspecial(dadosPdf));
 
                             itemListaEmenta.Sigla = string.Empty;
                             itemListaEmenta.DescSigla = string.Empty;
@@ -1611,8 +1913,6 @@ namespace Systax_BuscaLegal
                             new BuscaLegalDao().InserirLogErro(ex, urlCVM, string.Format("{0}", "1.1 Captura Doc - CVM"));
                         }
                     }
-
-                    this.label1.Text = "Concluído";
                 }
                 catch (Exception ex)
                 {
@@ -1652,9 +1952,7 @@ namespace Systax_BuscaLegal
 
             if ((modoProcessamento.Equals("f") || modoProcessamento.Equals("d")) && siglaFonteProcessamento.Equals("ade"))
             {
-                this.Text = "Fonte: Atos Normativos - Ementários";
-
-                webBrowser1 = new WebBrowser();
+                webBrowserGERAL = new WebBrowser();
 
                 if (idUrl == 0)
                 {
@@ -1662,11 +1960,11 @@ namespace Systax_BuscaLegal
                     idUrl = listaProcessamento.FirstOrDefault().Lista_Nivel2[0].IdUrl;
                 }
 
-                webBrowser1.ScriptErrorsSuppressed = true;
+                webBrowserGERAL.ScriptErrorsSuppressed = true;
 
-                webBrowser1.Navigate(@"http://novodecisoes.receita.fazenda.gov.br/consultaweb/index.jsf");
+                webBrowserGERAL.Navigate(@"http://novodecisoes.receita.fazenda.gov.br/consultaweb/index.jsf");
 
-                webBrowser1.DocumentCompleted += new WebBrowserDocumentCompletedEventHandler(webBrowser1_DocumentCompleted);
+                webBrowserGERAL.DocumentCompleted += new WebBrowserDocumentCompletedEventHandler(webBrowser1_DocumentCompleted);
             }
 
             #endregion
@@ -1693,7 +1991,7 @@ namespace Systax_BuscaLegal
                                                   ,"http://idg.receita.fazenda.gov.br/acesso-rapido/legislacao/link"
                                                   ,"http://idg.receita.fazenda.gov.br/acesso-rapido/legislacao/regulamentos"};
 
-                processarList.ForEach(x => listaInserir.Add(obterEstruturaProcessarUrl_RfbLeg(x)));
+                processarList.ForEach(x => listaInserir.Add(new Facilities().obterEstruturaProcessarUrl_RfbLeg(x)));
 
                 new BuscaLegalDao().AtualizarFontes(listaInserir);
             }
@@ -1872,19 +2170,19 @@ namespace Systax_BuscaLegal
                             htmlTratado = "<" + respostaNivel2_.Substring(int.Parse(itensFramework[0].Split('|')[0])).Substring(0, respostaNivel2_.Substring(int.Parse(itensFramework[0].Split('|')[0])).IndexOf(itensFramework[0].Split('|')[1]));
 
                             if (htmlTratado.IndexOf(itensFramework[0].Split('|')[2]) >= 0)
-                                ementa.TituloAto = ObterStringLimpa(htmlTratado.Substring(htmlTratado.IndexOf(itensFramework[0].Split('|')[2])).Substring(0, htmlTratado.Substring(htmlTratado.IndexOf(itensFramework[0].Split('|')[2])).IndexOf("</a>")));
+                                ementa.TituloAto = new Facilities().ObterStringLimpa(htmlTratado.Substring(htmlTratado.IndexOf(itensFramework[0].Split('|')[2])).Substring(0, htmlTratado.Substring(htmlTratado.IndexOf(itensFramework[0].Split('|')[2])).IndexOf("</a>")));
                             else
-                                ementa.TituloAto = ObterStringLimpa(htmlTratado.Substring(htmlTratado.IndexOf("href=http://legislacao.planalto.gov.br")).Substring(0, htmlTratado.Substring(htmlTratado.IndexOf("href=http://legislacao.planalto.gov.br")).IndexOf(itensFramework[0].Split('|')[3])));
+                                ementa.TituloAto = new Facilities().ObterStringLimpa(htmlTratado.Substring(htmlTratado.IndexOf("href=http://legislacao.planalto.gov.br")).Substring(0, htmlTratado.Substring(htmlTratado.IndexOf("href=http://legislacao.planalto.gov.br")).IndexOf(itensFramework[0].Split('|')[3])));
 
                             ementa.DataEdicao = string.Empty;
 
                             if (htmlTratado.IndexOf(itensFramework[0].Split('|')[4]) >= 0 && !itensFramework[0].Split('|')[4].Equals("nd"))
-                                ementa.Publicacao = ObterStringLimpa(htmlTratado.Substring(htmlTratado.IndexOf(itensFramework[0].Split('|')[4])).Substring(0, htmlTratado.Substring(htmlTratado.IndexOf(itensFramework[0].Split('|')[4])).IndexOf(itensFramework[0].Split('|')[5])));
+                                ementa.Publicacao = new Facilities().ObterStringLimpa(htmlTratado.Substring(htmlTratado.IndexOf(itensFramework[0].Split('|')[4])).Substring(0, htmlTratado.Substring(htmlTratado.IndexOf(itensFramework[0].Split('|')[4])).IndexOf(itensFramework[0].Split('|')[5])));
                             else
                                 ementa.Publicacao = string.Empty;
 
                             if (htmlTratado.IndexOf(itensFramework[0].Split('|')[6]) >= 0 && !itensFramework[0].Split('|')[6].Equals("nd"))
-                                ementa.Ementa = ObterStringLimpa(htmlTratado.Substring(htmlTratado.IndexOf(itensFramework[0].Split('|')[6])).Substring(0, htmlTratado.Substring(htmlTratado.IndexOf(itensFramework[0].Split('|')[6])).IndexOf(itensFramework[0].Split('|')[7])));
+                                ementa.Ementa = new Facilities().ObterStringLimpa(htmlTratado.Substring(htmlTratado.IndexOf(itensFramework[0].Split('|')[6])).Substring(0, htmlTratado.Substring(htmlTratado.IndexOf(itensFramework[0].Split('|')[6])).IndexOf(itensFramework[0].Split('|')[7])));
                             else
                                 ementa.Ementa = string.Empty;
 
@@ -1965,8 +2263,8 @@ namespace Systax_BuscaLegal
 
                             ementa.Texto = @novaCss + htmlTratado;
 
-                            ementa.Texto = removeTagScript(ementa.Texto);
-                            ementa.Hash = this.GerarHash(removerCaracterEspecial(ObterStringLimpa(ementa.Texto)));
+                            ementa.Texto = new Facilities().removeTagScript(ementa.Texto);
+                            ementa.Hash = new Facilities().GerarHash(new Facilities().removerCaracterEspecial(new Facilities().ObterStringLimpa(ementa.Texto)));
 
                             dynamic itemUrl = new ExpandoObject();
 
@@ -1986,9 +2284,9 @@ namespace Systax_BuscaLegal
                     }
                 }
 
-                string novoNcm = "TITULO\n";
-                urlTratar.ForEach(x => novoNcm += x.Replace("\n", "|") + "\n");
-                File.WriteAllText(@"C:\Temp\UrlErrosRFB_LEG.csv", novoNcm);
+                //string novoNcm = "TITULO\n";
+                //urlTratar.ForEach(x => novoNcm += x.Replace("\n", "|") + "\n");
+                //File.WriteAllText(@"C:\Temp\UrlErrosRFB_LEG.csv", novoNcm);
             }
 
             #endregion
@@ -2023,7 +2321,7 @@ namespace Systax_BuscaLegal
                     objUrll.Url = url;
                     objUrll.Lista_Nivel2 = new List<dynamic>();
 
-                    string resposta = getHtmlPaginaByGet(url, string.Empty);
+                    string resposta = new Facilities().getHtmlPaginaByGet(url, string.Empty);
 
                     resposta = System.Net.WebUtility.HtmlDecode(resposta.Replace("\n", " ").Replace("\r", " ").Replace("\t", " ").Replace("\"", string.Empty));
 
@@ -2055,195 +2353,6 @@ namespace Systax_BuscaLegal
                 if (listaUrl.Count == 0)
                     listaUrl = new BuscaLegalDao().ObterUrlsParaProcessamento("bcb");
 
-                #region "Tratamento Leandro"
-
-                //List<string> novalist;
-
-                ///* Tratamento inicial String */
-
-                //string arquivo = string.Empty;
-
-                //if (!File.Exists(@"C:\Users\systax\AppData\Roaming\Skype\My Skype Received Files\NovasNCM.txt"))
-                //{
-                //    arquivo = LeArquivo(@"C:\Users\systax\AppData\Roaming\Skype\My Skype Received Files\Novas NCMs - TEC copy.pdf");
-
-                //    int inexCont = 0;
-
-                //    arquivo = arquivo.Replace("COMERCIALIZAÇÃO PROIBIDA POR TERCEIROS", string.Empty);
-
-                //    string valor = string.Empty;
-                //    int indice = 0;
-
-                //    while (inexCont >= 0)
-                //    {
-                //        inexCont = arquivo.IndexOf("Nº 241, sexta-feira, 16 de dezembro de 2016");
-
-                //        valor = string.Empty;
-                //        indice = 0;
-
-                //        if (inexCont >= 0)
-                //        {
-                //            while (true)
-                //            {
-
-                //                valor = arquivo.Substring(arquivo.IndexOf("Infraestrutura de Chaves Públicas Brasileira - ICP-Brasil.") + "Infraestrutura de Chaves Públicas Brasileira - ICP-Brasil.".Length + indice, 1);
-
-                //                if (valor.Equals("1"))
-                //                {
-                //                    arquivo = arquivo.Remove(arquivo.IndexOf("Infraestrutura de Chaves Públicas Brasileira - ICP-Brasil.") + "Infraestrutura de Chaves Públicas Brasileira - ICP-Brasil.".Length, indice + 1);
-                //                    break;
-                //                }
-                //                else
-                //                    indice++;
-                //            }
-
-                //            arquivo = arquivo.Remove(arquivo.IndexOf("Nº 241, sexta-feira, 16 de dezembro de 2016"), ((arquivo.IndexOf("Infraestrutura de Chaves Públicas Brasileira - ICP-Brasil.") + "Infraestrutura de Chaves Públicas Brasileira - ICP-Brasil.".Length)) - arquivo.IndexOf("Nº 241, sexta-feira, 16 de dezembro de 2016"));
-                //        }
-                //    }
-
-                //    File.WriteAllText(@"C:\Users\systax\AppData\Roaming\Skype\My Skype Received Files\NovasNCM.txt", arquivo);
-                //}
-                //else
-                //{
-                //    arquivo = File.ReadAllText(@"C:\Users\systax\AppData\Roaming\Skype\My Skype Received Files\NovasNCM.txt");
-                //}
-
-                ///* Fim - Tratamento inicial String  */
-
-                ///* Identificando Itens do Grid NCM */
-                //var listaNcms = Regex.Split(arquivo, "NCM DESCRIÇÃO TEC").ToList();
-
-                //listaNcms.RemoveAt(0);
-
-                //novalist = new List<string>();
-
-                ///*Nivel Tabela*/
-                //listaNcms.ForEach(delegate(string x)
-                //{
-                //    string novo1 = x.Replace("(%)", string.Empty).Substring(0, x.IndexOf("_________"));
-
-                //    var novaLista = Regex.Split(novo1, "\n").ToList();
-
-                //    novaLista.RemoveAt(0);
-                //    novaLista.RemoveAt(novaLista.Count - 1);
-
-                //    /*Nivel Item tabela*/
-
-                //    string atual = string.Empty;
-
-                //    novaLista.ForEach(delegate(string y)
-                //    {
-                //        if (y.Contains("6204.19.00"))
-                //            atual = atual;
-
-                //        if (!string.IsNullOrEmpty(y.Trim()))
-                //        {
-                //            if (((char.IsNumber(Convert.ToChar(y.Trim().Substring(0, 1))) || y.Trim().Substring(0, 1).Equals("#")) && y.Length > 10) /*Validar*/ && (string.IsNullOrEmpty(atual) || !atual.Substring(atual.Length - 1).Equals(",")))
-                //            {
-                //                if (!string.IsNullOrEmpty(atual))
-                //                    novalist.Add(atual);
-
-                //                atual = y;
-                //            }
-                //            else if (atual.Length > 1 &&
-                //                        (!char.IsNumber(Convert.ToChar(atual.Substring(atual.Length - 1))) || !char.IsNumber(Convert.ToChar(y.Substring(0, 1))) || y.Length <= 2 || (y.Length <= 5 && (y.Contains("BK") || y.Contains("BIT")))) &&
-                //                            !(atual.Contains("BK") || atual.Contains("BIT")))
-                //            {
-                //                atual += " " + y;
-                //            }
-                //        }
-                //    });
-
-                //    if (!string.IsNullOrEmpty(atual))
-                //        novalist.Add(atual);
-                //    else
-                //        atual = atual;
-                //});
-
-                ///*Fim - Identificando Itens do Grid NCM*/
-
-                ///*Quebra dos dados na Estrutura .CSV*/
-
-                //List<string> listaFinal = new List<string>();
-
-                //string novoNcm = string.Empty;
-                //string auxNcm = string.Empty;
-
-                //novalist.ForEach(delegate(string x)
-                //{
-                //    novoNcm = string.Empty;
-
-                //    x = x.Replace(";", string.Empty).Replace("m2", "m").Replace("ASTM D 1238", "ASTM D 1238-").Replace("Capítulo 87", "Capítulo87").Replace("Capítulo 3", "Capítulo3").Replace("cm 3", "cm");
-
-                //    /*Identificação do código*/
-
-                //    x.ToList().ForEach(delegate(char y)
-                //    {
-                //        if ((char.IsNumber(y) || y.Equals(' ') || y.Equals('.')) && !novoNcm.Contains(";"))
-                //            novoNcm += y.ToString();
-
-                //        else if (novoNcm.Contains(";") || string.IsNullOrEmpty(novoNcm))
-                //            novoNcm += y.ToString();
-
-                //        else
-                //            novoNcm += novoNcm.Substring(novoNcm.Length - 1).Equals(";") ? y.ToString() : ";" + y.ToString();
-                //    });
-
-                //    /*Fim - Identificação do código*/
-
-                //    /*Nº Alíquota*/
-                //    if (x.Substring(x.Length - 1).Equals("*") || x.Substring(x.Length - 1).Equals("#") || char.IsNumber(Convert.ToChar(x.Substring(x.Length - 1))) || (x.Contains("BK") || x.Contains("BIT")))
-                //    {
-                //        int count = 1;
-                //        string aux = string.Empty;
-
-                //        bool tentativa = false;
-
-                //        while (true)
-                //        {
-                //            if ((x.Substring(x.Length - count, 1).Equals("*") || x.Substring(x.Length - count, 1).Equals("#") || char.IsNumber(Convert.ToChar(x.Substring(x.Length - count, 1)))) && (aux.Length < 2 /*Validar*/|| ((aux.Contains("*") || aux.Contains("#")) && aux.Length < 4)) && !(x.Contains("BK") || x.Contains("BIT")))
-                //            {
-                //                aux = x.Substring(x.Length - count, 1) + aux;
-                //                count++;
-                //            }
-                //            else if ((x.Contains("BK") || x.Contains("BIT")) && (char.IsNumber(Convert.ToChar(x.Substring((x.IndexOf("BK") >= 0 ? x.IndexOf("BK") : x.IndexOf("BIT")) - count, 1))) || !tentativa))
-                //            {
-                //                aux = x.Substring((x.IndexOf("BK") >= 0 ? x.IndexOf("BK") : x.IndexOf("BIT")) - count, 1) + aux;
-                //                tentativa = true;
-                //                count++;
-                //            }
-                //            else
-                //            {
-                //                if (x.Substring(x.Length - count, 1).Equals(" ") || (x.Contains("BK") || x.Contains("BIT")))
-                //                {
-                //                    novoNcm = novoNcm.Insert(novoNcm.LastIndexOf(aux), ";");
-                //                    tentativa = false;
-                //                }
-
-                //                break;
-                //            }
-                //        }
-                //    }
-                //    else
-                //        novoNcm += ";;";
-
-                //    listaFinal.Add(novoNcm);
-
-                //    /*Fim - Nº Alíquota*/
-                //});
-
-                ///*FIM - Quebra dos dados na Estrutura .CSV*/
-
-                ///*Criando o Arquivo*/
-
-                //novoNcm = "Codigo_NCM;NCM;Perc(%)\n";
-
-                //listaFinal.ForEach(x => novoNcm += x + "\n");
-
-                //File.WriteAllText(@"C:\Users\systax\AppData\Roaming\Skype\My Skype Received Files\NovasNCM.csv", novoNcm);
-
-                #endregion
-
                 string urlTratada = string.Empty;
 
                 dynamic ementa;
@@ -2266,7 +2375,7 @@ namespace Systax_BuscaLegal
 
                             itemListaVez.IdUrl = itemLista_Nivel2.IdUrl;
 
-                            string respostaNivel2_ = getHtmlPaginaByGet(urlTratada, "default");
+                            string respostaNivel2_ = new Facilities().getHtmlPaginaByGet(urlTratada, "default");
 
                             respostaNivel2_ = System.Net.WebUtility.HtmlDecode(respostaNivel2_.Replace("\"", "").Replace("\n", " ").Replace("\r", " ").Replace("\t", " "));
 
@@ -2304,7 +2413,7 @@ namespace Systax_BuscaLegal
                             else
                                 titulos = ("<" + (titulos.Substring(0, titulos.IndexOf("</small>"))));
 
-                            ementa.TituloAto = ObterStringLimpa(titulos).Trim().ToLower();
+                            ementa.TituloAto = new Facilities().ObterStringLimpa(titulos).Trim().ToLower();
 
                             /*Melhorar esse tratamento*/
                             if (urlTratada.ToLower().Contains("/decreto-lei/") || urlTratada.ToLower().Contains("/decreto/") || urlTratada.ToLower().Contains("/leis/") || urlTratada.ToLower().Contains("/lei/"))
@@ -2407,7 +2516,7 @@ namespace Systax_BuscaLegal
 
                             var ementas = listaTables[index].Substring(indexAtual).Substring(0, listaTables[index].Substring(indexAtual).IndexOf("</font>"));
 
-                            ementa.Ementa = ObterStringLimpa(ementas);
+                            ementa.Ementa = new Facilities().ObterStringLimpa(ementas);
 
                             if (string.IsNullOrEmpty(ementa.Ementa))
                                 new BuscaLegalDao().InserirLogErro(new Exception("Ementa não preenchida"), urlTratada, string.Empty);
@@ -2419,12 +2528,12 @@ namespace Systax_BuscaLegal
                                             " <p align=\"center\" style=\"margin-top: 15px; margin-bottom: 15px\"><font face=\"Arial\" color=\"#000080\" size=\"2\"><strong><a style=\"color: rgb(0,0,128)\" " +
                                             respostaNivel2_.Substring(respostaNivel2_.IndexOf("href=http://legislacao.planalto.gov.br/legisla/"), indexFinal - respostaNivel2_.IndexOf("href=http://legislacao.planalto.gov.br/legisla/"));
 
-                            ementa.Texto = removeTagScript(ementa.Texto);
+                            ementa.Texto = new Facilities().removeTagScript(ementa.Texto);
 
                             /**Hash**/
                             var textos = Regex.Split(respostaNivel2_, "</table>").ToList();
 
-                            ementa.Hash = this.GerarHash(removerCaracterEspecial(ObterStringLimpa(ementa.Texto)));
+                            ementa.Hash = new Facilities().GerarHash(new Facilities().removerCaracterEspecial(new Facilities().ObterStringLimpa(ementa.Texto)));
 
                             ementa.Republicacao = string.Empty;
 
@@ -2459,7 +2568,7 @@ namespace Systax_BuscaLegal
 
             #region "Captura URL's"
 
-            if (modoProcessamento.Equals("f") || modoProcessamento.Equals("u"))
+            if (modoProcessamento.Equals("f") || modoProcessamento.Equals("u1"))
             {
                 List<string> listUrl = new List<string>(){"http://idg.receita.fazenda.gov.br/acesso-rapido/legislacao/acordos-internacionais/acordos-para-evitar-a-dupla-tributacao/acordos-para-evitar-a-dupla-tributacao",
                                                           "http://idg.receita.fazenda.gov.br/acesso-rapido/legislacao/acordos-internacionais/acordos-para-intercambio-de-informacoes-relativas-a-tributos/acordos-para-intercambio-de-informacoes-relativas-a-tributos",
@@ -2474,7 +2583,7 @@ namespace Systax_BuscaLegal
                     objUrll.Url = url;
                     objUrll.Lista_Nivel2 = new List<dynamic>();
 
-                    string resposta = getHtmlPaginaByGet(url, string.Empty);
+                    string resposta = new Facilities().getHtmlPaginaByGet(url, string.Empty);
 
                     resposta = System.Net.WebUtility.HtmlDecode(resposta.Replace("\n", " ").Replace("\r", " ").Replace("\t", " ").Replace("\"", string.Empty));
 
@@ -2497,160 +2606,6 @@ namespace Systax_BuscaLegal
             #endregion
 
             #region "Captura DOC's"
-
-            #region "OLD"
-            //if ((modoProcessamento.Equals("f") || modoProcessamento.Equals("d")) && siglaFonteProcessamento.Equals("rfb-edt"))
-            //{
-            //    if (listaUrl.Count == 0)
-            //        listaUrl = new BuscaLegalDao().ObterUrlsParaProcessamento("rfb-edt");
-
-            //    string urlTratada = string.Empty;
-
-            //    dynamic ementaInserir;
-
-            //    foreach (var nivel1_item in listaUrl)
-            //    {
-            //        foreach (var itemLista_Nivel2 in nivel1_item.Lista_Nivel2)
-            //        {
-            //            try
-            //            {
-            //                Thread.Sleep(1000);
-
-            //                dynamic itemListaVez = new ExpandoObject();
-            //                itemListaVez.ListaEmenta = new List<dynamic>();
-
-            //                urlTratada = itemLista_Nivel2.Url.Trim();
-            //                itemListaVez.Url = urlTratada;
-            //                itemListaVez.IdUrl = itemLista_Nivel2.IdUrl;
-
-            //                //Todo: Tratar para salvar o arquivo PDF na base
-            //                if (urlTratada.Contains(".pdf"))
-            //                    continue;
-
-            //                string respostaNivel2_ = getHtmlPaginaByGet(urlTratada, string.Empty);
-
-            //                respostaNivel2_ = System.Net.WebUtility.HtmlDecode(respostaNivel2_.Replace("\"", "").Replace("\n", " ").Replace("\r", " ").Replace("\t", " "));
-
-            //                /*Captura CSS*/
-            //                var listaCss = Regex.Split(respostaNivel2_, "<link").ToList();
-
-            //                listaCss.RemoveAt(0);
-
-            //                string cssStyle = string.Empty;
-
-            //                if (listaCss.Count > 0)
-            //                {
-            //                    listaCssTratada = new List<string>();
-
-            //                    listaCss.ForEach(delegate(string x)
-            //                    {
-            //                        string novaCss = string.Format("{0}{1}", "<link", x.Substring(0, x.IndexOf(">") + 1));
-
-            //                        listaCssTratada.Add(novaCss);
-            //                    });
-
-            //                    listaCssTratada.ForEach(x => cssStyle += x);
-            //                }
-
-            //                /*Fim Captura CSS*/
-
-            //                string textoFull = string.Empty;
-
-            //                textoFull = respostaNivel2_.Substring(respostaNivel2_.IndexOf("<div id=content>"), respostaNivel2_.IndexOf("<div id=viewlet-below-content>") - respostaNivel2_.IndexOf("<div id=content>"));
-
-            //                string republicacao = ObterStringLimpa("<" + textoFull.Substring(textoFull.IndexOf("class=documentPublished") + 6).Substring(0, textoFull.Substring(textoFull.IndexOf("class=documentPublished") + 6).IndexOf("class=")));
-
-            //                string modificacao = ObterStringLimpa("<" + textoFull.Substring(textoFull.IndexOf("class=documentModified")).Substring(0, textoFull.IndexOf("</div>")));
-
-            //                string ementaTexto = ObterStringLimpa(textoFull.Substring(textoFull.IndexOf("<table")).Substring(0, textoFull.Substring(textoFull.IndexOf("<table")).IndexOf("</table>")));
-
-            //                int inicioCorpo = textoFull.IndexOf("<h1 class=TituloPaginas>");
-            //                string publicacao = string.Empty;
-
-            //                if (inicioCorpo < 0)
-            //                {
-            //                    inicioCorpo = textoFull.IndexOf("<h1 class=documentFirstHeading>");
-            //                    publicacao = ObterStringLimpa(textoFull.Substring(textoFull.IndexOf("<div id=content-core>")).Substring(textoFull.Substring(textoFull.IndexOf("<div id=content-core>")).IndexOf("<p"), textoFull.Substring(textoFull.IndexOf("<div id=content-core>")).IndexOf("</p>") - textoFull.Substring(textoFull.IndexOf("<div id=content-core>")).IndexOf("<p")));
-            //                }
-            //                else
-            //                {
-            //                    publicacao = ObterStringLimpa(textoFull.Substring(textoFull.IndexOf("</table>")).Substring(0, textoFull.Substring(textoFull.IndexOf("</table>")).IndexOf("</p>")));
-
-            //                    if (publicacao.Length > 50 || !publicacao.Contains("DOU"))
-            //                    {
-            //                        publicacao = ObterStringLimpa(textoFull.Substring(textoFull.LastIndexOf("</h1>")).Substring(0, textoFull.Substring(textoFull.LastIndexOf("</h1>")).IndexOf("</b>") < 0 ? 0 : textoFull.Substring(textoFull.LastIndexOf("</h1>")).IndexOf("</b>")));
-            //                    }
-            //                }
-
-            //                if ((publicacao.Length > 50 && !publicacao.Contains("DOU")) || !publicacao.Contains("DOU"))
-            //                {
-            //                    publicacao = ObterStringLimpa(textoFull.Substring(textoFull.IndexOf("<div id=content-core>")).Substring(textoFull.Substring(textoFull.IndexOf("<div id=content-core>")).IndexOf("<p"), textoFull.Substring(textoFull.IndexOf("<div id=content-core>")).IndexOf("</p>") - textoFull.Substring(textoFull.IndexOf("<div id=content-core>")).IndexOf("<p")));
-
-            //                    if (publicacao.Length > 50 || !publicacao.Contains("DOU"))
-            //                        publicacao = string.Empty;
-            //                }
-
-            //                string titulo = ObterStringLimpa(textoFull.Substring(inicioCorpo).Substring(0, textoFull.Substring(inicioCorpo).IndexOf("</h1>")));
-
-            //                int indexQuebra = titulo.ToLower().IndexOf("nº") < 0 ?
-            //                                    titulo.ToLower().IndexOf("n°") < 0 ?
-            //                                        titulo.ToLower().IndexOf("n °") < 0 ?
-            //                                            titulo.ToLower().IndexOf("n.º") < 0 ?
-            //                                                titulo.ToLower().IndexOf("n º") : titulo.ToLower().IndexOf("n.º") : titulo.ToLower().IndexOf("n °") : titulo.ToLower().IndexOf("n°") : titulo.ToLower().IndexOf("nº");
-
-            //                string especie = string.Empty;
-            //                string numero = string.Empty;
-            //                string edicao = string.Empty;
-
-            //                if (indexQuebra >= 0)
-            //                {
-            //                    especie = titulo.Substring(0, indexQuebra);
-            //                    numero = titulo.Trim().Substring(indexQuebra + 2, (titulo.ToLower().IndexOf(",") < 0 ? titulo.Trim().ToLower().IndexOf(" de") : titulo.ToLower().IndexOf(",")) - (indexQuebra + 2));
-            //                    edicao = titulo.Trim().Substring((titulo.Trim().ToLower().IndexOf(",") < 0 ? titulo.Trim().ToLower().IndexOf(" de") : titulo.Trim().ToLower().IndexOf(","))); ;
-            //                }
-
-            //                ementaInserir = new ExpandoObject();
-
-            //                /**Outros**/
-            //                ementaInserir.Sigla = string.Empty;
-            //                ementaInserir.DescSigla = string.Empty;
-            //                ementaInserir.HasContent = false;
-
-            //                /**Arquivo**/
-            //                ementaInserir.ListaArquivos = new List<ArquivoUpload>();
-
-            //                ementaInserir.Tipo = 3;
-            //                ementaInserir.Metadado = "{" + string.Format("\"UF\":\"{0}\"", "FED") + "}";
-
-            //                /**Default**/
-            //                ementaInserir.Publicacao = publicacao.Trim();
-            //                ementaInserir.Republicacao = republicacao.Replace("publicado", string.Empty).Replace(",", string.Empty).Trim();
-            //                ementaInserir.Ementa = ementaTexto.Trim();
-            //                ementaInserir.TituloAto = titulo.Trim();
-            //                ementaInserir.Especie = especie.Trim();
-            //                ementaInserir.NumeroAto = Regex.Replace(numero, "[^0-9]+", string.Empty);
-            //                ementaInserir.DataEdicao = edicao.Replace(", de", string.Empty).Replace(" de", string.Empty).Trim();
-            //                ementaInserir.Texto = cssStyle + Regex.Replace(removeTagScript(textoFull.Trim()), @"\s+", " ");
-            //                ementaInserir.Hash = GerarHash(removerCaracterEspecial(ObterStringLimpa(textoFull)));
-
-            //                ementaInserir.Escopo = "FED";
-            //                ementaInserir.IdFila = itemLista_Nivel2.Id;
-
-            //                itemListaVez.ListaEmenta.Add(ementaInserir);
-
-            //                dynamic itemFonte = new ExpandoObject();
-
-            //                itemFonte.Lista_Nivel2 = new List<dynamic>() { itemListaVez };
-
-            //                new BuscaLegalDao().AtualizarFontes(new List<dynamic>() { itemFonte });
-            //            }
-            //            catch (Exception)
-            //            {
-            //            }
-            //        }
-            //    }
-            //}
-            #endregion
 
             #region "New"
 
@@ -2686,7 +2641,7 @@ namespace Systax_BuscaLegal
                                 continue;
                             }
 
-                            string respostaNivel2_ = getHtmlPaginaByGet(urlTratada, string.Empty);
+                            string respostaNivel2_ = new Facilities().getHtmlPaginaByGet(urlTratada, string.Empty);
 
                             respostaNivel2_ = System.Net.WebUtility.HtmlDecode(respostaNivel2_.Replace("\"", string.Empty).Replace("\n", " ").Replace("\r", " ").Replace("\t", " "));
 
@@ -2761,14 +2716,14 @@ namespace Systax_BuscaLegal
 
                             /**Default**/
                             if (itensFrameWork[0].Contains("<span>publicado</span>|,"))
-                                ementaInserir.Publicacao = ObterStringLimpa(respostaNivel2_.Substring(respostaNivel2_.IndexOf(itensFrameWork[0].Split('|')[2])).Substring(0, respostaNivel2_.Substring(respostaNivel2_.IndexOf(itensFrameWork[0].Split('|')[2])).IndexOf(itensFrameWork[0].Split('|')[3])));
+                                ementaInserir.Publicacao = new Facilities().ObterStringLimpa(respostaNivel2_.Substring(respostaNivel2_.IndexOf(itensFrameWork[0].Split('|')[2])).Substring(0, respostaNivel2_.Substring(respostaNivel2_.IndexOf(itensFrameWork[0].Split('|')[2])).IndexOf(itensFrameWork[0].Split('|')[3])));
                             else
-                                ementaInserir.Publicacao = ObterStringLimpa(textoFull.Substring(textoFull.IndexOf(itensFrameWork[0].Split('|')[2])).Substring(0, textoFull.Substring(textoFull.IndexOf(itensFrameWork[0].Split('|')[2])).IndexOf(itensFrameWork[0].Split('|')[3])));
+                                ementaInserir.Publicacao = new Facilities().ObterStringLimpa(textoFull.Substring(textoFull.IndexOf(itensFrameWork[0].Split('|')[2])).Substring(0, textoFull.Substring(textoFull.IndexOf(itensFrameWork[0].Split('|')[2])).IndexOf(itensFrameWork[0].Split('|')[3])));
 
                             if (textoFull.IndexOf(itensFrameWork[0].Split('|')[6]) >= 0)
-                                ementaInserir.TituloAto = ObterStringLimpa("<" + textoFull.Substring(0, textoFull.IndexOf(itensFrameWork[0].Split('|')[6])));
+                                ementaInserir.TituloAto = new Facilities().ObterStringLimpa("<" + textoFull.Substring(0, textoFull.IndexOf(itensFrameWork[0].Split('|')[6])));
                             else
-                                ementaInserir.TituloAto = ObterStringLimpa("<" + respostaNivel2_.Substring(respostaNivel2_.IndexOf(itensFrameWork[0].Split('|')[7])).Substring(0, respostaNivel2_.Substring(respostaNivel2_.IndexOf(itensFrameWork[0].Split('|')[7])).IndexOf(itensFrameWork[0].Split('|')[6])));
+                                ementaInserir.TituloAto = new Facilities().ObterStringLimpa("<" + respostaNivel2_.Substring(respostaNivel2_.IndexOf(itensFrameWork[0].Split('|')[7])).Substring(0, respostaNivel2_.Substring(respostaNivel2_.IndexOf(itensFrameWork[0].Split('|')[7])).IndexOf(itensFrameWork[0].Split('|')[6])));
 
                             string numero = string.Empty;
                             string TituloAto = ementaInserir.TituloAto;
@@ -2779,12 +2734,12 @@ namespace Systax_BuscaLegal
                                 numero = "0";
 
                             ementaInserir.Republicacao = string.Empty;
-                            ementaInserir.Ementa = textoFull.Contains("<b>DECLARATION</b>") ? string.Empty : ObterStringLimpa(textoFull.Substring(textoFull.IndexOf(itensFrameWork[0].Split('|')[4])).Substring(0, textoFull.Substring(textoFull.IndexOf(itensFrameWork[0].Split('|')[4])).IndexOf(itensFrameWork[0].Split('|')[5])));
+                            ementaInserir.Ementa = textoFull.Contains("<b>DECLARATION</b>") ? string.Empty : new Facilities().ObterStringLimpa(textoFull.Substring(textoFull.IndexOf(itensFrameWork[0].Split('|')[4])).Substring(0, textoFull.Substring(textoFull.IndexOf(itensFrameWork[0].Split('|')[4])).IndexOf(itensFrameWork[0].Split('|')[5])));
                             ementaInserir.Especie = ementaInserir.TituloAto.Trim().Contains(" ") ? ementaInserir.TituloAto.Substring(0, ementaInserir.TituloAto.IndexOf(" ")) : string.Empty;
                             ementaInserir.NumeroAto = Regex.Replace(numero, "[^0-9]+", string.Empty);
                             ementaInserir.DataEdicao = string.Empty;
-                            ementaInserir.Texto = cssStyle + Regex.Replace(removeTagScript(textoFull.Trim()), @"\s+", " ");
-                            ementaInserir.Hash = GerarHash(removerCaracterEspecial(ObterStringLimpa(textoFull)));
+                            ementaInserir.Texto = cssStyle + Regex.Replace(new Facilities().removeTagScript(textoFull.Trim()), @"\s+", " ");
+                            ementaInserir.Hash = new Facilities().GerarHash(new Facilities().removerCaracterEspecial(new Facilities().ObterStringLimpa(textoFull)));
 
                             ementaInserir.Escopo = "FED";
                             ementaInserir.IdFila = itemLista_Nivel2.Id;
@@ -2802,9 +2757,9 @@ namespace Systax_BuscaLegal
                     }
                 }
 
-                string novoNcm = "TITULO\n";
-                urlTratar.ForEach(x => novoNcm += x.Replace("\n", "|") + "\n");
-                File.WriteAllText(@"C:\Temp\UrlErrosRFB_EDT.csv", novoNcm);
+                //string novoNcm = "TITULO\n";
+                //urlTratar.ForEach(x => novoNcm += x.Replace("\n", "|") + "\n");
+                //File.WriteAllText(@"C:\Temp\UrlErrosRFB_EDT.csv", novoNcm);
             }
 
             #endregion
@@ -2837,7 +2792,7 @@ namespace Systax_BuscaLegal
                             objUrll.Url = url;
                             objUrll.Lista_Nivel2 = new List<dynamic>();
 
-                            string resposta = getHtmlPaginaByGet(url + "?page=" + countPage.ToString(), string.Empty);
+                            string resposta = new Facilities().getHtmlPaginaByGet(url + "?page=" + countPage.ToString(), string.Empty);
 
                             resposta = System.Net.WebUtility.HtmlDecode(resposta.Replace("\n", " ").Replace("\r", " ").Replace("\t", " ").Replace("\"", string.Empty));
 
@@ -2902,7 +2857,7 @@ namespace Systax_BuscaLegal
 
                             itemListaVez.IdUrl = itemLista_Nivel2.IdUrl;
 
-                            string respostaNivel2_ = getHtmlPaginaByGet(urlTratada, string.Empty);
+                            string respostaNivel2_ = new Facilities().getHtmlPaginaByGet(urlTratada, string.Empty);
 
                             respostaNivel2_ = System.Net.WebUtility.HtmlDecode(respostaNivel2_.Replace("\"", "").Replace("\n", " ").Replace("\r", " ").Replace("\t", " "));
 
@@ -2937,11 +2892,11 @@ namespace Systax_BuscaLegal
 
                             textoFull = respostaNivel2_.Substring(respostaNivel2_.IndexOf("<h1 class=page_heading>"), respostaNivel2_.IndexOf("<a href=#top>Voltar ao topo</a>") - respostaNivel2_.IndexOf("<h1 class=page_heading>"));
 
-                            string titulo = ObterStringLimpa(textoFull.Substring(textoFull.IndexOf("<h1"), textoFull.IndexOf("</h1>") - textoFull.IndexOf("<h1")));
+                            string titulo = new Facilities().ObterStringLimpa(textoFull.Substring(textoFull.IndexOf("<h1"), textoFull.IndexOf("</h1>") - textoFull.IndexOf("<h1")));
 
                             string numeroAto = titulo.Substring(titulo.ToLower().IndexOf("nº") + 2, titulo.IndexOf("/") - (titulo.ToLower().IndexOf("nº") + 2));
 
-                            string ementa = ObterStringLimpa(textoFull.Substring(textoFull.IndexOf("<h2")).Substring(0, textoFull.Substring(textoFull.IndexOf("<h2")).IndexOf("</div>")));
+                            string ementa = new Facilities().ObterStringLimpa(textoFull.Substring(textoFull.IndexOf("<h2")).Substring(0, textoFull.Substring(textoFull.IndexOf("<h2")).IndexOf("</div>")));
 
                             /** Arquivo **/
                             string arquivo = textoFull.Substring(textoFull.IndexOf("class=pretty-button primary resource-url-analytics") + "class=pretty-button primary resource-url-analytics".Length);
@@ -2960,16 +2915,16 @@ namespace Systax_BuscaLegal
 
                             File.Delete(nomeArq);
 
-                            textoFull = removeTagScript(textoFull);
+                            textoFull = new Facilities().removeTagScript(textoFull);
 
-                            string hash = GerarHash(removerCaracterEspecial((textoFull.Substring(textoFull.LastIndexOf("<h3")))));
+                            string hash = new Facilities().GerarHash(new Facilities().removerCaracterEspecial((textoFull.Substring(textoFull.LastIndexOf("<h3")))));
 
                             var listDados = Regex.Split(textoFull.Substring(textoFull.IndexOf("<h3")).Substring(0, textoFull.Substring(textoFull.IndexOf("<h3")).IndexOf("</table>")), "<td class").ToList();
 
                             listDados.RemoveRange(0, 2);
 
-                            string sigla = ObterStringLimpa("<" + listDados[0]).Trim();
-                            string data = ObterStringLimpa("<" + listDados[listDados.Count - 1]).Trim();
+                            string sigla = new Facilities().ObterStringLimpa("<" + listDados[0]).Trim();
+                            string data = new Facilities().ObterStringLimpa("<" + listDados[listDados.Count - 1]).Trim();
 
                             ementaInserir = new ExpandoObject();
 
@@ -3022,7 +2977,7 @@ namespace Systax_BuscaLegal
 
             #region "Captura URL's"
 
-            if (modoProcessamento.Equals("f") || modoProcessamento.Equals("u"))
+            if (modoProcessamento.Equals("f") || modoProcessamento.Equals("u1"))
             {
 
                 listaInserir = new List<dynamic>();
@@ -3037,7 +2992,7 @@ namespace Systax_BuscaLegal
                     objUrll.Url = url;
                     objUrll.Lista_Nivel2 = new List<dynamic>();
 
-                    string resposta = getHtmlPaginaByGet(url, string.Empty);
+                    string resposta = new Facilities().getHtmlPaginaByGet(url, string.Empty);
 
                     resposta = System.Net.WebUtility.HtmlDecode(resposta.Replace("\n", " ").Replace("\r", " ").Replace("\t", " ").Replace("\"", " "));
                     resposta = resposta.Substring(resposta.IndexOf("<b>Notas explicativas relacionadas a decisões que vinculam a RFB:</b>")).Substring(0, resposta.Substring(resposta.IndexOf("<b>Notas explicativas relacionadas a decisões que vinculam a RFB:</b>")).IndexOf("</ul>"));
@@ -3052,7 +3007,7 @@ namespace Systax_BuscaLegal
 
                         string urlNova = x.Substring(x.IndexOf("href=") + 5).Substring(0, x.Substring(x.IndexOf("href=") + 5).IndexOf(".pdf") + 4);
 
-                        urlNova += string.Format("|{0}", ObterStringLimpa(x));
+                        urlNova += string.Format("|{0}", new Facilities().ObterStringLimpa(x));
 
                         objItenUrl.Url = urlNova;
 
@@ -3102,11 +3057,11 @@ namespace Systax_BuscaLegal
                             }
 
                             byte[] arrayFile = File.ReadAllBytes(nomeArq);
-                            string conteudoPdf = LeArquivo(nomeArq);
+                            string conteudoPdf = new Facilities().LeArquivo(nomeArq);
                             File.Delete(nomeArq);
 
                             /** Fim-Arquivo **/
-                            string hash = GerarHash(removerCaracterEspecial(Regex.Replace(conteudoPdf.Replace("\n", " ").Replace("\t", " ").Trim(), @"\s+", " ")));
+                            string hash = new Facilities().GerarHash(new Facilities().removerCaracterEspecial(Regex.Replace(conteudoPdf.Replace("\n", " ").Replace("\t", " ").Trim(), @"\s+", " ")));
 
                             ementaInserir = new ExpandoObject();
 
@@ -3263,9 +3218,8 @@ namespace Systax_BuscaLegal
 
                             indexVez = 15 + indexVez;
                         }
-                        catch (Exception ex)
+                        catch (Exception)
                         {
-                            throw ex;
                         }
                     }
 
@@ -3290,7 +3244,7 @@ namespace Systax_BuscaLegal
 
                 string urlCss = "http://www.bcb.gov.br/pre/normativos/busca/normativo.asp?numero=616&tipo=Ato%20de%20Diretor&data=23/12/2016";
 
-                string _respostaNivel = getHtmlPaginaByGet(urlCss, string.Empty);
+                string _respostaNivel = new Facilities().getHtmlPaginaByGet(urlCss, string.Empty);
 
                 var listaCss = Regex.Split(_respostaNivel.Replace("\"", string.Empty).Replace("\n", string.Empty), "<link").ToList();
 
@@ -3394,7 +3348,7 @@ namespace Systax_BuscaLegal
                                         }
 
                                         byte[] arrayFile = File.ReadAllBytes(pathSaveArq);
-                                        string conteudoPdf = LeArquivo(pathSaveArq);
+                                        string conteudoPdf = new Facilities().LeArquivo(pathSaveArq);
                                         File.Delete(pathSaveArq);
                                         /** Fim-Arquivo **/
 
@@ -3511,7 +3465,7 @@ namespace Systax_BuscaLegal
                                                             <div style='padding-left:47%;padding-right:17.9%;text-align:justify;text-indent:0px;font-size:12px;font-family:courier new'>{2}</div><br>
                                                             <br><div style='padding-left:17.9%;padding-right:17.9%;text-align:justify;text-indent:0px;font-size:12px;font-family:courier new'>{3}</div></div>", titulo_, titulo_, ementa, textoJson);
 
-                                ementa = indexDiv > indexTexto ? string.Empty : Regex.Replace(ObterStringLimpa(ementa.Replace("\n", " ").Replace("\t", " ")), @"\s+", " ");
+                                ementa = indexDiv > indexTexto ? string.Empty : Regex.Replace(new Facilities().ObterStringLimpa(ementa.Replace("\n", " ").Replace("\t", " ")), @"\s+", " ");
                             }
 
                             /**Tratamento para inserir na base**/
@@ -3538,7 +3492,7 @@ namespace Systax_BuscaLegal
                             ementaInserir.DataEdicao = string.Empty;
                             ementaInserir.Texto = cssDoc + texto;
                             ementaInserir.IdFila = itemLista_Nivel2.Id;
-                            ementaInserir.Hash = GerarHash(removerCaracterEspecial(ObterStringLimpa(textoJson.Replace("\n", " ").Replace("\t", " "))));
+                            ementaInserir.Hash = new Facilities().GerarHash(new Facilities().removerCaracterEspecial(new Facilities().ObterStringLimpa(textoJson.Replace("\n", " ").Replace("\t", " "))));
 
                             ementaInserir.Escopo = "FED";
                             ementaInserir.IdFila = itemLista_Nivel2.Id;
@@ -3601,7 +3555,7 @@ namespace Systax_BuscaLegal
                     webClient.DownloadFile(listaUrl[0].Lista_Nivel2[0].Url, nomeArq);
                 }
 
-                string conteudoPdf = LeArquivo(nomeArq);
+                string conteudoPdf = new Facilities().LeArquivo(nomeArq);
                 File.Delete(nomeArq);
 
                 var listResolucoes = Regex.Split(conteudoPdf.Replace("\n", string.Empty), "Presidente do").ToList();
@@ -3710,7 +3664,7 @@ namespace Systax_BuscaLegal
                     ementaInserir.NumeroAto = numero;
                     ementaInserir.DataEdicao = string.Empty;
                     ementaInserir.Texto = item.Trim();//Regex.Replace(item.Trim(), @"\s+", " ");
-                    ementaInserir.Hash = GerarHash(removerCaracterEspecial(ObterStringLimpa(item.Trim())));
+                    ementaInserir.Hash = new Facilities().GerarHash(new Facilities().removerCaracterEspecial(new Facilities().ObterStringLimpa(item.Trim())));
 
                     ementaInserir.Escopo = "FED";
                     ementaInserir.IdFila = listaUrl[0].Lista_Nivel2[0].Id;
@@ -3735,13 +3689,13 @@ namespace Systax_BuscaLegal
 
             if (modoProcessamento.Equals("f") || modoProcessamento.Equals("u1"))
             {
-                webBrowser1 = new WebBrowser();
+                webBrowserGERAL = new WebBrowser();
 
-                webBrowser1.ScriptErrorsSuppressed = true;
+                webBrowserGERAL.ScriptErrorsSuppressed = true;
 
-                webBrowser1.Navigate("http://www.legislacao.sefaz.rs.gov.br/Site/Search.aspx?a=&CodArea=0");
+                webBrowserGERAL.Navigate("http://www.legislacao.sefaz.rs.gov.br/Site/Search.aspx?a=&CodArea=0");
 
-                webBrowser1.DocumentCompleted += new WebBrowserDocumentCompletedEventHandler(webBrowser1_DocumentCompleted_SefazRs);
+                webBrowserGERAL.DocumentCompleted += new WebBrowserDocumentCompletedEventHandler(webBrowser1_DocumentCompleted_SefazRs);
             }
 
             #endregion
@@ -3783,7 +3737,7 @@ namespace Systax_BuscaLegal
 
                             /*Fase 1 obter a url para o documento final*/
 
-                            string respostaNivel2_ = getHtmlPaginaByGet(urlTratada, string.Empty);
+                            string respostaNivel2_ = new Facilities().getHtmlPaginaByGet(urlTratada, string.Empty);
 
                             respostaNivel2_ = System.Net.WebUtility.HtmlDecode(respostaNivel2_.Replace("\"", "").Replace("\n", " ").Replace("\r", " ").Replace("\t", " "));
 
@@ -3795,7 +3749,7 @@ namespace Systax_BuscaLegal
 
                             /*Fase 2 obter o documento final*/
 
-                            respostaNivel2_ = getHtmlPaginaByGet(urlTratada, "default");
+                            respostaNivel2_ = new Facilities().getHtmlPaginaByGet(urlTratada, "default");
 
                             /*Captura css*/
 
@@ -3829,14 +3783,14 @@ namespace Systax_BuscaLegal
 
                             int corte = textFull.IndexOf("<br>") >= 0 && textFull.IndexOf("<br>") < textFull.IndexOf("</p>") ? textFull.IndexOf("<br>") : textFull.IndexOf("</p>");
 
-                            string titulo = ObterStringLimpa(textFull.Substring(0, corte));
+                            string titulo = new Facilities().ObterStringLimpa(textFull.Substring(0, corte));
 
                             string numero = titulo.ToLower().Trim().Contains("/") ? titulo.Trim().Substring(0, titulo.ToLower().Trim().IndexOf("/")) :
                                                 titulo.ToLower().Trim().Contains(",") ? titulo.Trim().Substring(0, titulo.ToLower().Trim().IndexOf(",")) :
                                                     titulo.ToLower().Trim().Contains(" de") ? titulo.Trim().Substring(0, titulo.ToLower().Trim().IndexOf(" de")) : titulo.Trim();
 
                             //string especie = titulo.Substring(0, titulo.ToUpper().Replace("NOVEMBRO", string.Empty).LastIndexOf(" N"));
-                            int indexEspecie = titulo.ToLower().Replace("novembro", string.Empty).LastIndexOf(" n") > 0 ? titulo.ToLower().Replace("novembro", string.Empty).LastIndexOf(" n") : obterPontoCorte(titulo);
+                            int indexEspecie = titulo.ToLower().Replace("novembro", string.Empty).LastIndexOf(" n") > 0 ? titulo.ToLower().Replace("novembro", string.Empty).LastIndexOf(" n") : new Facilities().obterPontoCorte(titulo);
                             string especie = indexEspecie >= 0 ? titulo.Substring(0, indexEspecie) : string.Empty;
 
                             string ementa = string.Empty;
@@ -3849,7 +3803,7 @@ namespace Systax_BuscaLegal
                             if (textFull.IndexOf("class=reference>") > 0)
                             {
                                 publicacao = textFull.Substring(textFull.IndexOf("class=reference>"));
-                                publicacao = ObterStringLimpa("<" + publicacao.Substring(0, publicacao.IndexOf("</span>")));
+                                publicacao = new Facilities().ObterStringLimpa("<" + publicacao.Substring(0, publicacao.IndexOf("</span>")));
                             }
 
                             textFull = cssList + textFull;
@@ -3871,13 +3825,13 @@ namespace Systax_BuscaLegal
                             /**Default**/
                             ementaInserir.Publicacao = publicacao;
                             ementaInserir.Republicacao = string.Empty;
-                            ementaInserir.Ementa = ObterStringLimpa(ementa);
+                            ementaInserir.Ementa = new Facilities().ObterStringLimpa(ementa);
                             ementaInserir.TituloAto = titulo;
                             ementaInserir.Especie = especie;
                             ementaInserir.NumeroAto = Regex.Replace(numero, "[^0-9]+", string.Empty);
                             ementaInserir.DataEdicao = string.Empty;
                             ementaInserir.Texto = textFull;
-                            ementaInserir.Hash = GerarHash(removerCaracterEspecial(ObterStringLimpa(textFull)));
+                            ementaInserir.Hash = new Facilities().GerarHash(new Facilities().removerCaracterEspecial(new Facilities().ObterStringLimpa(textFull)));
 
                             ementaInserir.Escopo = "RS";
                             ementaInserir.IdFila = itemLista_Nivel2.Id;
@@ -3932,9 +3886,9 @@ namespace Systax_BuscaLegal
                     resposta = string.Empty;
 
                     if (url.Equals("http://legislacao.sef.sc.gov.br/legtrib_internet/Indices/Consultas/Ind_RN.htm"))
-                        resposta = getHtmlPaginaByGet(url, "default");
+                        resposta = new Facilities().getHtmlPaginaByGet(url, "default");
                     else
-                        resposta = getHtmlPaginaByGet(url, string.Empty);
+                        resposta = new Facilities().getHtmlPaginaByGet(url, string.Empty);
 
                     objUrll = new ExpandoObject();
 
@@ -4000,7 +3954,7 @@ namespace Systax_BuscaLegal
 
                             /*Fase 1 obter a url para o documento final*/
 
-                            string respostaNivel2_ = getHtmlPaginaByGet(urlTratada, "default");
+                            string respostaNivel2_ = new Facilities().getHtmlPaginaByGet(urlTratada, "default");
 
                             respostaNivel2_ = System.Net.WebUtility.HtmlDecode(respostaNivel2_.Replace("\"", "").Replace("\n", " ").Replace("\r", " ").Replace("\t", " "));
 
@@ -4062,19 +4016,19 @@ namespace Systax_BuscaLegal
                                 var list1 = Regex.Split(respostaNivel2_.ToLower(), "<p class=estilo style=").ToList();
 
                                 list1.RemoveAt(0);
-                                list1.RemoveAll(x => ObterStringLimpa("<" + x).Trim().Equals(string.Empty));
-                                list1.ForEach(x => ementa = ementa.Equals(string.Empty) ? ObterStringLimpa("<" + x.Substring(0, x.IndexOf("</p>"))) : ementa);
+                                list1.RemoveAll(x => new Facilities().ObterStringLimpa("<" + x).Trim().Equals(string.Empty));
+                                list1.ForEach(x => ementa = ementa.Equals(string.Empty) ? new Facilities().ObterStringLimpa("<" + x.Substring(0, x.IndexOf("</p>"))) : ementa);
                             }
 
-                            titulo = ObterStringLimpa(titulo);
+                            titulo = new Facilities().ObterStringLimpa(titulo);
 
                             if (titulo.Trim().Equals(string.Empty) && respostaNivel2_.ToLower().Contains("class=document"))
                             {
                                 var list1 = Regex.Split(respostaNivel2_.ToLower(), "class=document").ToList();
 
                                 list1.RemoveAt(0);
-                                list1.RemoveAll(x => ObterStringLimpa("<" + x).Trim().Equals(string.Empty));
-                                list1.ForEach(x => titulo = titulo.Equals(string.Empty) ? ObterStringLimpa("<" + x.Substring(0, x.IndexOf("</p>"))) : titulo);
+                                list1.RemoveAll(x => new Facilities().ObterStringLimpa("<" + x).Trim().Equals(string.Empty));
+                                list1.ForEach(x => titulo = titulo.Equals(string.Empty) ? new Facilities().ObterStringLimpa("<" + x.Substring(0, x.IndexOf("</p>"))) : titulo);
                             }
 
                             if (titulo.Trim().Equals(string.Empty) && respostaNivel2_.ToLower().Contains("class=01documento"))
@@ -4082,8 +4036,8 @@ namespace Systax_BuscaLegal
                                 var list1 = Regex.Split(respostaNivel2_.ToLower(), "class=01documento").ToList();
 
                                 list1.RemoveAt(0);
-                                list1.RemoveAll(x => ObterStringLimpa("<" + x).Trim().Equals(string.Empty));
-                                list1.ForEach(x => titulo = titulo.Equals(string.Empty) ? ObterStringLimpa("<" + x.Substring(0, x.IndexOf("</p>"))) : titulo);
+                                list1.RemoveAll(x => new Facilities().ObterStringLimpa("<" + x).Trim().Equals(string.Empty));
+                                list1.ForEach(x => titulo = titulo.Equals(string.Empty) ? new Facilities().ObterStringLimpa("<" + x.Substring(0, x.IndexOf("</p>"))) : titulo);
                             }
 
                             int indexPublicacao = respostaNivel2_.ToLower().IndexOf("<p class=publicado") >= 0 ? respostaNivel2_.ToLower().IndexOf("<p class=publicado") : respostaNivel2_.ToLower().IndexOf("<p class=msonormal");
@@ -4102,8 +4056,8 @@ namespace Systax_BuscaLegal
                                 var list1 = Regex.Split(respostaNivel2_.ToLower(), "<p class=msonormal>").ToList();
 
                                 list1.RemoveRange(0, 2);
-                                list1.RemoveAll(x => ObterStringLimpa("<" + x).Trim().Equals(string.Empty));
-                                list1.ForEach(x => ementa = ementa.Equals(string.Empty) ? ObterStringLimpa("<" + x.Substring(0, x.IndexOf("</p>"))) : ementa);
+                                list1.RemoveAll(x => new Facilities().ObterStringLimpa("<" + x).Trim().Equals(string.Empty));
+                                list1.ForEach(x => ementa = ementa.Equals(string.Empty) ? new Facilities().ObterStringLimpa("<" + x.Substring(0, x.IndexOf("</p>"))) : ementa);
                             }
 
                             string numero = titulo.IndexOf("/") >= 0 && (titulo.IndexOf("/") < titulo.IndexOf(",") || titulo.IndexOf(",") < 0) ?
@@ -4111,13 +4065,13 @@ namespace Systax_BuscaLegal
                                                     titulo.Substring(0, titulo.IndexOf(",")) : titulo.ToLower().IndexOf(" de") > 0 ?
                                                         titulo.Substring(0, titulo.ToLower().IndexOf(" de")) : titulo;
 
-                            int indexEspecie = titulo.ToLower().Replace("novembro", string.Empty).LastIndexOf(" n") > 0 ? titulo.ToLower().Replace("novembro", string.Empty).LastIndexOf(" n") : obterPontoCorte(titulo);
+                            int indexEspecie = titulo.ToLower().Replace("novembro", string.Empty).LastIndexOf(" n") > 0 ? titulo.ToLower().Replace("novembro", string.Empty).LastIndexOf(" n") : new Facilities().obterPontoCorte(titulo);
                             string especie = indexEspecie >= 0 ? titulo.Substring(0, indexEspecie) : string.Empty;
 
-                            publicacao = ObterStringLimpa(publicacao);
-                            ementa = ObterStringLimpa(ementa);
-                            numero = ObterStringLimpa(numero);
-                            especie = ObterStringLimpa(especie);
+                            publicacao = new Facilities().ObterStringLimpa(publicacao);
+                            ementa = new Facilities().ObterStringLimpa(ementa);
+                            numero = new Facilities().ObterStringLimpa(numero);
+                            especie = new Facilities().ObterStringLimpa(especie);
 
                             /**Tratamento para inserir na base**/
                             dynamic ementaInserir = new ExpandoObject();
@@ -4142,7 +4096,7 @@ namespace Systax_BuscaLegal
                             ementaInserir.NumeroAto = Regex.Replace(numero, "[^0-9]+", string.Empty);
                             ementaInserir.DataEdicao = string.Empty;
                             ementaInserir.Texto = descStyle + texto;
-                            ementaInserir.Hash = GerarHash(removerCaracterEspecial(ObterStringLimpa(texto)));
+                            ementaInserir.Hash = new Facilities().GerarHash(new Facilities().removerCaracterEspecial(new Facilities().ObterStringLimpa(texto)));
 
                             ementaInserir.Escopo = "SC";
                             ementaInserir.IdFila = itemLista_Nivel2.Id;
@@ -4195,7 +4149,7 @@ namespace Systax_BuscaLegal
 
                             /*Fase 1 obter a url para o documento final*/
 
-                            string respostaNivel2_ = getHtmlPaginaByGet(urlTratada, "default");
+                            string respostaNivel2_ = new Facilities().getHtmlPaginaByGet(urlTratada, "default");
 
                             respostaNivel2_ = System.Net.WebUtility.HtmlDecode(respostaNivel2_.Replace("\"", "").Replace("\n", " ").Replace("\r", " ").Replace("\t", " "));
 
@@ -4237,7 +4191,7 @@ namespace Systax_BuscaLegal
                             string titulo = string.Empty;
 
                             if (texto.ToLower().IndexOf("class=consulta") < 0 && texto.ToLower().IndexOf("class=redaoatual ") < 0 && texto.ToLower().IndexOf("class=msoheader") < 0 && texto.ToLower().IndexOf("class=resoluoassunto") < 0 && texto.ToLower().IndexOf("class=publicado") < 0)
-                                titulo = obterDadosColection(texto, "consulta nº:");
+                                titulo = new Facilities().obterDadosColection(texto, "consulta nº:");
 
                             else if (texto.ToLower().IndexOf("class=consulta") > 0)
                                 titulo = "<" + texto.ToLower().Substring(texto.ToLower().IndexOf("class=consulta")).Substring(0, texto.ToLower().Substring(texto.ToLower().IndexOf("class=consulta")).IndexOf("</p>"));
@@ -4251,7 +4205,7 @@ namespace Systax_BuscaLegal
                                 {
                                     titulo = "<" + texto.ToLower().Substring(texto.ToLower().IndexOf("class=msonormal")).Substring(0, texto.ToLower().Substring(texto.ToLower().IndexOf("class=msonormal")).IndexOf("</p>"));
 
-                                    if (string.IsNullOrEmpty(ObterStringLimpa(titulo.Trim())))
+                                    if (string.IsNullOrEmpty(new Facilities().ObterStringLimpa(titulo.Trim())))
                                     {
                                         var textoAux = texto.Remove(texto.ToLower().IndexOf("class=msonormal"), (texto.ToLower().IndexOf("class=msonormal") + "class=msonormal".Length - texto.ToLower().IndexOf("class=msonormal")));
 
@@ -4271,7 +4225,7 @@ namespace Systax_BuscaLegal
                             else if (texto.ToLower().IndexOf("class=resoluoassunto") > 0 && texto.ToLower().IndexOf("class=publicado") > 0)
                                 titulo = texto.ToLower().Substring(texto.ToLower().IndexOf("class=resoluoassunto")).Substring(texto.ToLower().Substring(texto.ToLower().IndexOf("class=resoluoassunto")).IndexOf("</div>"), texto.ToLower().Substring(texto.ToLower().IndexOf("class=resoluoassunto")).IndexOf("class=publicado") - texto.Substring(texto.ToLower().IndexOf("class=resoluoassunto")).IndexOf("</div>"));
 
-                            titulo = ObterStringLimpa(titulo);
+                            titulo = new Facilities().ObterStringLimpa(titulo);
 
                             string especie = string.Empty;
                             string numero = string.Empty;
@@ -4281,7 +4235,7 @@ namespace Systax_BuscaLegal
 
                             else
                             {
-                                especie = titulo.ToLower().IndexOf(" n") > 0 ? titulo.Substring(0, titulo.ToLower().IndexOf(" n")) : titulo.IndexOf(":") > 0 ? titulo.Substring(0, titulo.IndexOf(":")) : titulo.Substring(0, obterPontoCorte(titulo));
+                                especie = titulo.ToLower().IndexOf(" n") > 0 ? titulo.Substring(0, titulo.ToLower().IndexOf(" n")) : titulo.IndexOf(":") > 0 ? titulo.Substring(0, titulo.IndexOf(":")) : titulo.Substring(0, new Facilities().obterPontoCorte(titulo));
                                 numero = titulo.IndexOf("/") >= 0 && (titulo.IndexOf("/") < titulo.IndexOf(",") || titulo.IndexOf(",") < 0) ? titulo.Substring(0, titulo.IndexOf("/")) : titulo.Substring(0, titulo.IndexOf(","));
                             }
 
@@ -4290,21 +4244,21 @@ namespace Systax_BuscaLegal
 
                             if (texto.ToLower().IndexOf("class=consulta") < 0 && texto.ToLower().IndexOf("class=redaoatual ") < 0 && texto.ToLower().IndexOf("class=msoheader") < 0 && texto.ToLower().IndexOf("class=resoluoassunto") < 0 && texto.ToLower().IndexOf("class=publicado") < 0)
                             {
-                                publicacao = obterDadosColection(texto, "d.o.e.");
-                                ementa = obterDadosColection(texto, "ementa:");
+                                publicacao = new Facilities().obterDadosColection(texto, "d.o.e.");
+                                ementa = new Facilities().obterDadosColection(texto, "ementa:");
                             }
                             else
                             {
                                 publicacao = texto.ToLower().IndexOf("class=publicado") > 0 ? "<" + texto.Substring(texto.ToLower().IndexOf("class=publicado")).Substring(0, texto.Substring(texto.ToLower().IndexOf("class=publicado")).IndexOf("</p>")) : string.Empty;
-                                ementa = texto.ToLower().IndexOf("class=resoluoassunto") > 0 ? obterEmentaTexto(texto) : string.Empty;
+                                ementa = texto.ToLower().IndexOf("class=resoluoassunto") > 0 ? new Facilities().obterEmentaTexto(texto) : string.Empty;
                             }
 
-                            especie = ObterStringLimpa(especie);
-                            numero = Regex.Replace(ObterStringLimpa(numero), "[^0-9]+", string.Empty);
-                            publicacao = ObterStringLimpa(publicacao);
-                            ementa = ObterStringLimpa(ementa);
+                            especie = new Facilities().ObterStringLimpa(especie);
+                            numero = Regex.Replace(new Facilities().ObterStringLimpa(numero), "[^0-9]+", string.Empty);
+                            publicacao = new Facilities().ObterStringLimpa(publicacao);
+                            ementa = new Facilities().ObterStringLimpa(ementa);
 
-                            texto = removeTagScript(texto.Trim());
+                            texto = new Facilities().removeTagScript(texto.Trim());
 
                             /**Tratamento para inserir na base**/
                             dynamic ementaInserir = new ExpandoObject();
@@ -4329,7 +4283,7 @@ namespace Systax_BuscaLegal
                             ementaInserir.NumeroAto = numero;
                             ementaInserir.DataEdicao = string.Empty;
                             ementaInserir.Texto = descStyle + Regex.Replace(texto.Trim(), @"\s+", " ");
-                            ementaInserir.Hash = GerarHash(removerCaracterEspecial(ObterStringLimpa(texto)));
+                            ementaInserir.Hash = new Facilities().GerarHash(new Facilities().removerCaracterEspecial(new Facilities().ObterStringLimpa(texto)));
 
                             ementaInserir.Escopo = "SC";
                             ementaInserir.IdFila = itemLista_Nivel2.Id;
@@ -4342,9 +4296,8 @@ namespace Systax_BuscaLegal
 
                             new BuscaLegalDao().AtualizarFontes(new List<dynamic>() { itemFonte });
                         }
-                        catch (Exception ex)
+                        catch (Exception)
                         {
-                            throw ex;
                         }
                     }
                 }
@@ -4383,7 +4336,7 @@ namespace Systax_BuscaLegal
 
                             /*Fase 1 obter a url para o documento final*/
 
-                            string respostaNivel2_ = getHtmlPaginaByGet(urlTratada, "default");
+                            string respostaNivel2_ = new Facilities().getHtmlPaginaByGet(urlTratada, "default");
 
                             respostaNivel2_ = System.Net.WebUtility.HtmlDecode(respostaNivel2_.Replace("\"", "").Replace("\n", " ").Replace("\r", " ").Replace("\t", " "));
 
@@ -4429,7 +4382,7 @@ namespace Systax_BuscaLegal
                             {
                                 titulo = "<" + texto.Substring(texto.ToLower().IndexOf("class=documento01")).Substring(0, texto.Substring(texto.ToLower().IndexOf("class=documento01")).IndexOf("</p>"));
 
-                                if (ObterStringLimpa(titulo).Equals(string.Empty))
+                                if (new Facilities().ObterStringLimpa(titulo).Equals(string.Empty))
                                     titulo = "<" + texto.Substring(texto.ToLower().LastIndexOf("class=documento01")).Substring(0, texto.Substring(texto.ToLower().LastIndexOf("class=documento01")).IndexOf("</p>"));
 
                                 texto = "<" + texto.Substring(texto.ToLower().IndexOf("class=documento01"));
@@ -4445,7 +4398,7 @@ namespace Systax_BuscaLegal
 
                                     foreach (string item in listaEmenta)
                                     {
-                                        if (!ObterStringLimpa("<" + item).Trim().Equals(string.Empty))
+                                        if (!new Facilities().ObterStringLimpa("<" + item).Trim().Equals(string.Empty))
                                         {
                                             ementa = "<" + item.Substring(0, item.IndexOf("</p>"));
                                             break;
@@ -4466,22 +4419,22 @@ namespace Systax_BuscaLegal
                             string numero = string.Empty;
                             string especie = string.Empty;
 
-                            titulo = ObterStringLimpa(titulo).Trim();
+                            titulo = new Facilities().ObterStringLimpa(titulo).Trim();
 
                             if (string.IsNullOrEmpty(titulo))
                                 numero = "0";
 
                             else
                             {
-                                especie = titulo.ToLower().IndexOf(" n") > 0 ? titulo.Substring(0, titulo.ToLower().IndexOf(" n")) : titulo.IndexOf(":") > 0 ? titulo.Substring(0, titulo.IndexOf(":")) : titulo.Substring(0, obterPontoCorte(titulo));
+                                especie = titulo.ToLower().IndexOf(" n") > 0 ? titulo.Substring(0, titulo.ToLower().IndexOf(" n")) : titulo.IndexOf(":") > 0 ? titulo.Substring(0, titulo.IndexOf(":")) : titulo.Substring(0, new Facilities().obterPontoCorte(titulo));
                                 numero = titulo.IndexOf("/") >= 0 && (titulo.IndexOf("/") < titulo.IndexOf(",") || titulo.IndexOf(",") < 0) ? titulo.Substring(0, titulo.IndexOf("/")) : titulo.IndexOf(",") >= 0 ? titulo.Substring(0, titulo.IndexOf(",")) : titulo;
                             }
 
-                            especie = ObterStringLimpa(especie);
-                            numero = Regex.Replace(ObterStringLimpa(numero), "[^0-9]+", string.Empty);
-                            ementa = ObterStringLimpa(ementa);
+                            especie = new Facilities().ObterStringLimpa(especie);
+                            numero = Regex.Replace(new Facilities().ObterStringLimpa(numero), "[^0-9]+", string.Empty);
+                            ementa = new Facilities().ObterStringLimpa(ementa);
 
-                            texto = removeTagScript(texto.Trim());
+                            texto = new Facilities().removeTagScript(texto.Trim());
 
                             /**Tratamento para inserir na base**/
                             dynamic ementaInserir = new ExpandoObject();
@@ -4506,7 +4459,7 @@ namespace Systax_BuscaLegal
                             ementaInserir.NumeroAto = numero;
                             ementaInserir.DataEdicao = string.Empty;
                             ementaInserir.Texto = descStyle + Regex.Replace(texto.Trim(), @"\s+", " ");
-                            ementaInserir.Hash = GerarHash(removerCaracterEspecial(ObterStringLimpa(texto)));
+                            ementaInserir.Hash = new Facilities().GerarHash(new Facilities().removerCaracterEspecial(new Facilities().ObterStringLimpa(texto)));
 
                             ementaInserir.Escopo = "SC";
                             ementaInserir.IdFila = itemLista_Nivel2.Id;
@@ -4520,9 +4473,8 @@ namespace Systax_BuscaLegal
                             new BuscaLegalDao().AtualizarFontes(new List<dynamic>() { itemFonte });
 
                         }
-                        catch (Exception ex)
+                        catch (Exception)
                         {
-                            throw ex;
                         }
                     }
                 }
@@ -4577,7 +4529,7 @@ namespace Systax_BuscaLegal
 
                             urlTratada = itemLista_Nivel2.Url.Trim();
 
-                            string respostaNivel2_ = getHtmlPaginaByGet(urlTratada, "default");
+                            string respostaNivel2_ = new Facilities().getHtmlPaginaByGet(urlTratada, "default");
 
                             respostaNivel2_ = System.Net.WebUtility.HtmlDecode(respostaNivel2_.Replace("\"", "").Replace("\n", " ").Replace("\r", " ").Replace("\t", " "));
 
@@ -4614,11 +4566,11 @@ namespace Systax_BuscaLegal
                                     }
 
                                     //byte[] arrayFile = File.ReadAllBytes(nomeArq);
-                                    string conteudoPdf = LeArquivo(nomeArq);
+                                    string conteudoPdf = new Facilities().LeArquivo(nomeArq);
                                     File.Delete(nomeArq);
 
                                     /** Fim-Arquivo **/
-                                    string hash = GerarHash(removerCaracterEspecial(Regex.Replace(conteudoPdf.Replace("\n", string.Empty).Replace("\t", string.Empty).Trim(), @"\s+", " ")));
+                                    string hash = new Facilities().GerarHash(new Facilities().removerCaracterEspecial(Regex.Replace(conteudoPdf.Replace("\n", string.Empty).Replace("\t", string.Empty).Trim(), @"\s+", " ")));
 
                                     ementaInserir = new ExpandoObject();
 
@@ -4633,15 +4585,15 @@ namespace Systax_BuscaLegal
                                     ementaInserir.Tipo = 3;
                                     ementaInserir.Metadado = "{" + string.Format("\"UF\":\"{0}\"", "PR") + "}";
 
-                                    string numero = ObterStringLimpa(listaItens[1]).Contains("/") ? ObterStringLimpa(listaItens[1]).Substring(0, ObterStringLimpa(listaItens[1]).IndexOf("/")) : ObterStringLimpa(listaItens[1]);
+                                    string numero = new Facilities().ObterStringLimpa(listaItens[1]).Contains("/") ? new Facilities().ObterStringLimpa(listaItens[1]).Substring(0, new Facilities().ObterStringLimpa(listaItens[1]).IndexOf("/")) : new Facilities().ObterStringLimpa(listaItens[1]);
 
                                     /** Default **/
-                                    ementaInserir.Publicacao = ObterStringLimpa(listaItens[2]);
+                                    ementaInserir.Publicacao = new Facilities().ObterStringLimpa(listaItens[2]);
                                     ementaInserir.Sigla = string.Empty;
                                     ementaInserir.Republicacao = string.Empty;
-                                    ementaInserir.Ementa = ObterStringLimpa(listaItens[4]);
-                                    ementaInserir.TituloAto = string.Format("{0} {1} {2}", ObterStringLimpa(listaItens[0]), ObterStringLimpa(listaItens[1]), ObterStringLimpa(listaItens[3]));
-                                    ementaInserir.Especie = ObterStringLimpa(listaItens[0]);
+                                    ementaInserir.Ementa = new Facilities().ObterStringLimpa(listaItens[4]);
+                                    ementaInserir.TituloAto = string.Format("{0} {1} {2}", new Facilities().ObterStringLimpa(listaItens[0]), new Facilities().ObterStringLimpa(listaItens[1]), new Facilities().ObterStringLimpa(listaItens[3]));
+                                    ementaInserir.Especie = new Facilities().ObterStringLimpa(listaItens[0]);
                                     ementaInserir.NumeroAto = Regex.Replace(numero, "[^0-9]+", string.Empty);
                                     ementaInserir.DataEdicao = string.Empty;
                                     ementaInserir.Texto = Regex.Replace(conteudoPdf.Replace("\0", string.Empty), @"\s+", " ");
@@ -4684,7 +4636,7 @@ namespace Systax_BuscaLegal
 
             if (modoProcessamento.Equals("f") || modoProcessamento.Equals("u1"))
             {
-                List<string> listUrlDocs = new List<string>() {/*"https://www.confaz.fazenda.gov.br/legislacao/convenios-ecf"
+                List<string> listUrlDocs = new List<string>() { "https://www.confaz.fazenda.gov.br/legislacao/convenios-ecf"
                                                                ,"https://www.confaz.fazenda.gov.br/legislacao/convenios"
                                                                ,"https://www.confaz.fazenda.gov.br/legislacao/convenios_arrecadacao"
                                                                ,"https://www.confaz.fazenda.gov.br/legislacao/copy_of_convenios-diversos"
@@ -4700,7 +4652,7 @@ namespace Systax_BuscaLegal
                                                                ,"https://www.confaz.fazenda.gov.br/legislacao/protocolos-ecf"
                                                                ,"https://www.confaz.fazenda.gov.br/legislacao/protocolos-ipva"
                                                                ,"https://www.confaz.fazenda.gov.br/legislacao/protocolos-diversos"
-                                                               ,*/"https://www.confaz.fazenda.gov.br/legislacao/aliquotas-icms-estaduais"
+                                                               ,"https://www.confaz.fazenda.gov.br/legislacao/aliquotas-icms-estaduais"
                                                                ,"https://www.confaz.fazenda.gov.br/legislacao/regimento"
                                                                ,"https://www.confaz.fazenda.gov.br/legislacao/orgaos-credenciados"
                                                                ,"https://www.confaz.fazenda.gov.br/legislacao/arquivo-manuais"};
@@ -4715,7 +4667,7 @@ namespace Systax_BuscaLegal
 
                     if (itemUrl.Contains("/aliquotas-icms-estaduais") || itemUrl.Contains("/regimento") || itemUrl.Contains("/orgaos-credenciados") || itemUrl.Contains("/arquivo-manuais"))
                     {
-                        string resposta = getHtmlPaginaByGet(objUrll.Url, string.Empty);
+                        string resposta = new Facilities().getHtmlPaginaByGet(objUrll.Url, string.Empty);
 
                         resposta = System.Net.WebUtility.HtmlDecode(resposta.Replace("\n", " ").Replace("\r", " ").Replace("\t", " ").Replace("\"", string.Empty));
 
@@ -4736,7 +4688,7 @@ namespace Systax_BuscaLegal
                     }
                     else
                     {
-                        string resposta = getHtmlPaginaByGet(objUrll.Url, string.Empty);
+                        string resposta = new Facilities().getHtmlPaginaByGet(objUrll.Url, string.Empty);
 
                         resposta = System.Net.WebUtility.HtmlDecode(resposta.Replace("\n", " ").Replace("\r", " ").Replace("\t", " ").Replace("\"", " "));
 
@@ -4749,7 +4701,7 @@ namespace Systax_BuscaLegal
 
                         foreach (var item in listaUrlDocs)
                         {
-                            resposta = getHtmlPaginaByGet(item, string.Empty);
+                            resposta = new Facilities().getHtmlPaginaByGet(item, string.Empty);
 
                             resposta = System.Net.WebUtility.HtmlDecode(resposta.Replace("\n", string.Empty).Replace("\r", string.Empty).Replace("\t", string.Empty).Replace("\"", string.Empty));
 
@@ -4801,7 +4753,6 @@ namespace Systax_BuscaLegal
                 string urlTratada = string.Empty;
 
                 dynamic ementaInserir;
-                int contX = 0;
 
                 foreach (var nivel1_item in listaUrl)
                 {
@@ -4809,16 +4760,7 @@ namespace Systax_BuscaLegal
                     {
                         try
                         {
-                            if (contX < 0)
-                            {
-                                contX++;
-                                continue;
-                            }
-
-                            contX++;
-
                             Thread.Sleep(2000);
-
                             dynamic itemListaVez = new ExpandoObject();
 
                             itemListaVez.ListaEmenta = new List<dynamic>();
@@ -4826,7 +4768,7 @@ namespace Systax_BuscaLegal
                             itemListaVez.Url = urlTratada;
                             itemListaVez.IdUrl = itemLista_Nivel2.IdUrl;
 
-                            string respostaNivel2_ = getHtmlPaginaByGet(urlTratada, string.Empty);
+                            string respostaNivel2_ = new Facilities().getHtmlPaginaByGet(urlTratada, string.Empty);
 
                             respostaNivel2_ = System.Net.WebUtility.HtmlDecode(respostaNivel2_.Replace("\"", "").Replace("\n", string.Empty).Replace("\r", string.Empty).Replace("\t", string.Empty));
 
@@ -4851,13 +4793,13 @@ namespace Systax_BuscaLegal
                                 }
 
                                 byte[] arrayFile = File.ReadAllBytes(nomeArq);
-                                string conteudoPdf = LeArquivo(nomeArq);
+                                string conteudoPdf = new Facilities().LeArquivo(nomeArq);
                                 File.Delete(nomeArq);
 
                                 ementaInserir.ListaArquivos.Add(new ArquivoUpload() { conteudoArquivo = arrayFile, ExtensaoArquivo = nomeArq.Substring(nomeArq.LastIndexOf(".") + 1), NomeArquivo = urlTratada.Split('|')[0].Substring(urlTratada.Split('|')[0].LastIndexOf("/") + 1) });
                                 /** Fim-Arquivo **/
 
-                                hash = GerarHash(removerCaracterEspecial(Regex.Replace(conteudoPdf.Replace("\n", string.Empty).Replace("\t", string.Empty).Trim(), @"\s+", " ")));
+                                hash = new Facilities().GerarHash(new Facilities().removerCaracterEspecial(Regex.Replace(conteudoPdf.Replace("\n", string.Empty).Replace("\t", string.Empty).Trim(), @"\s+", " ")));
                             }
                             else
                             {
@@ -4893,8 +4835,8 @@ namespace Systax_BuscaLegal
                                         listaExt = Regex.Split(texto.ToLower(), itemLista.Split('|')[1]).ToList();
 
                                         listaExt.RemoveAt(0);
-                                        listaExt.RemoveAll(x => ObterStringLimpa("<" + x).Trim().Equals(string.Empty));
-                                        listaExt.ForEach(x => titulo = titulo.Equals(string.Empty) ? ObterStringLimpa("<" + (x + itemLista.Split('|')[2]), itemLista.Split('|')[2]) : titulo);
+                                        listaExt.RemoveAll(x => new Facilities().ObterStringLimpa("<" + x).Trim().Equals(string.Empty));
+                                        listaExt.ForEach(x => titulo = titulo.Equals(string.Empty) ? new Facilities().ObterStringLimpa("<" + (x + itemLista.Split('|')[2]), itemLista.Split('|')[2]) : titulo);
                                     }
 
                                     if (titulo.Equals(string.Empty))
@@ -4927,8 +4869,8 @@ namespace Systax_BuscaLegal
                                         listaExt = Regex.Split(texto.ToLower(), itemLista.Split('|')[1]).ToList();
 
                                         listaExt.RemoveAt(0);
-                                        listaExt.RemoveAll(x => ObterStringLimpa("<" + x).Trim().Equals(string.Empty) || ObterStringLimpa("<" + x).Trim().Equals(titulo));
-                                        listaExt.ForEach(x => publicacao = publicacao.Equals(string.Empty) ? ObterStringLimpa("<" + (x + itemLista.Split('|')[2]), itemLista.Split('|')[2]) : publicacao);
+                                        listaExt.RemoveAll(x => new Facilities().ObterStringLimpa("<" + x).Trim().Equals(string.Empty) || new Facilities().ObterStringLimpa("<" + x).Trim().Equals(titulo));
+                                        listaExt.ForEach(x => publicacao = publicacao.Equals(string.Empty) ? new Facilities().ObterStringLimpa("<" + (x + itemLista.Split('|')[2]), itemLista.Split('|')[2]) : publicacao);
                                     }
 
                                     if (publicacao.Equals(string.Empty))
@@ -4976,12 +4918,12 @@ namespace Systax_BuscaLegal
                                             listaExt = Regex.Split(textoAjustado.ToLower(), item.Split('|')[1]).ToList();
 
                                             listaExt.RemoveAt(0);
-                                            listaExt.RemoveAll(x => ObterStringLimpa("<" + x).Trim().Equals(string.Empty) || ObterStringLimpa("<" + x, "</p>").Trim().Length > 100);
+                                            listaExt.RemoveAll(x => new Facilities().ObterStringLimpa("<" + x).Trim().Equals(string.Empty) || new Facilities().ObterStringLimpa("<" + x, "</p>").Trim().Length > 100);
                                             listaExt.ForEach(x => publicacao = publicacao.Equals(string.Empty) ||
                                                                     publicacao.Equals("ministério da fazenda") ||
                                                                         publicacao.Equals("comissão técnica permanente do icms-cotepe/icms") ||
                                                                             publicacao.Equals("secretaria-executiva") ||
-                                                                                publicacao.Replace("–", "-").Equals("conselho nacional de política fazendária - confaz") ? ObterStringLimpa("<" + x, item.Split('|')[2]) : publicacao);
+                                                                                publicacao.Replace("–", "-").Equals("conselho nacional de política fazendária - confaz") ? new Facilities().ObterStringLimpa("<" + x, item.Split('|')[2]) : publicacao);
                                         }
 
                                         if (!item.Contains("<p class=msonormal") || listString[listString.Count - 1].Contains("<p class=msonormal"))
@@ -4989,12 +4931,12 @@ namespace Systax_BuscaLegal
                                             listaExt = Regex.Split(textoAjustado.ToLower(), item.Split('|')[1]).ToList();
 
                                             listaExt.RemoveAt(0);
-                                            listaExt.RemoveAll(x => ObterStringLimpa("<" + x).Trim().Equals(string.Empty) || publicacao.Equals(ObterStringLimpa("<" + x, item.Split('|')[2]).Trim()) || ObterStringLimpa("<" + x, item.Split('|')[2]).Trim().Length > 80);
+                                            listaExt.RemoveAll(x => new Facilities().ObterStringLimpa("<" + x).Trim().Equals(string.Empty) || publicacao.Equals(new Facilities().ObterStringLimpa("<" + x, item.Split('|')[2]).Trim()) || new Facilities().ObterStringLimpa("<" + x, item.Split('|')[2]).Trim().Length > 80);
                                             listaExt.ForEach(x => titulo = titulo.Equals(string.Empty) ||
                                                                     titulo.Equals("ministério da fazenda") ||
                                                                         titulo.Equals("comissão técnica permanente do icms-cotepe/icms") ||
                                                                             titulo.Equals("secretaria-executiva") ||
-                                                                                titulo.Replace("–", "-").Equals("conselho nacional de política fazendária - confaz") ? ObterStringLimpa("<" + x, item.Split('|')[2]) : titulo);
+                                                                                titulo.Replace("–", "-").Equals("conselho nacional de política fazendária - confaz") ? new Facilities().ObterStringLimpa("<" + x, item.Split('|')[2]) : titulo);
                                         }
                                     }
                                     else
@@ -5002,18 +4944,18 @@ namespace Systax_BuscaLegal
                                         listaExt = Regex.Split(textoAjustado.ToLower(), item.Split('|')[1]).ToList();
 
                                         listaExt.RemoveAt(0);
-                                        listaExt.RemoveAll(x => ObterStringLimpa("<" + x).Trim().Equals(string.Empty) || ObterStringLimpa("<" + x, item.Split('|')[2]).Trim().Length > 80);
+                                        listaExt.RemoveAll(x => new Facilities().ObterStringLimpa("<" + x).Trim().Equals(string.Empty) || new Facilities().ObterStringLimpa("<" + x, item.Split('|')[2]).Trim().Length > 80);
                                         listaExt.ForEach(x => titulo = titulo.Equals(string.Empty) ||
                                                                     titulo.Equals("ministério da fazenda") ||
                                                                         titulo.Equals("comissão técnica permanente do icms-cotepe/icms") ||
                                                                             titulo.Equals("secretaria-executiva") ||
-                                                                                titulo.Replace("–", "-").Contains("conselho nacional de política fazendária - confaz") ? ObterStringLimpa("<" + x, item.Split('|')[2]) : titulo);
+                                                                                titulo.Replace("–", "-").Contains("conselho nacional de política fazendária - confaz") ? new Facilities().ObterStringLimpa("<" + x, item.Split('|')[2]) : titulo);
 
                                         listaExt = Regex.Split(textoAjustado.ToLower(), item.Split('|')[1]).ToList();
 
                                         listaExt.RemoveAt(0);
-                                        listaExt.RemoveAll(x => ObterStringLimpa("<" + x).Trim().Equals(string.Empty) || titulo.Equals(ObterStringLimpa("<" + x, item.Split('|')[2]).Trim()) || ObterStringLimpa("<" + x, item.Split('|')[2]).Trim().Length > 100 || (ObterStringLimpa("<" + x, item.Split('|')[2]).Trim().Equals(string.Empty) && ObterStringLimpa("<" + x).Trim().Length > 100));
-                                        listaExt.ForEach(x => publicacao = publicacao.Equals(string.Empty) ? ObterStringLimpa("<" + x, item.Split('|')[2]) : publicacao);
+                                        listaExt.RemoveAll(x => new Facilities().ObterStringLimpa("<" + x).Trim().Equals(string.Empty) || titulo.Equals(new Facilities().ObterStringLimpa("<" + x, item.Split('|')[2]).Trim()) || new Facilities().ObterStringLimpa("<" + x, item.Split('|')[2]).Trim().Length > 100 || (new Facilities().ObterStringLimpa("<" + x, item.Split('|')[2]).Trim().Equals(string.Empty) && new Facilities().ObterStringLimpa("<" + x).Trim().Length > 100));
+                                        listaExt.ForEach(x => publicacao = publicacao.Equals(string.Empty) ? new Facilities().ObterStringLimpa("<" + x, item.Split('|')[2]) : publicacao);
                                     }
 
                                     countItens++;
@@ -5035,32 +4977,26 @@ namespace Systax_BuscaLegal
                                     indexCaptura = texto.IndexOf("publicado") > 0 && (texto.IndexOf("publicado") < indexCaptura || indexCaptura == 0) ? texto.IndexOf("publicado") : indexCaptura;
                                     indexCaptura = texto.IndexOf("publicação") > 0 && (texto.IndexOf("publicação") < indexCaptura || indexCaptura == 0) ? texto.IndexOf("publicação") : indexCaptura;
 
-                                    publicacao = ObterStringLimpa(texto.Substring(indexCaptura).Substring(0, texto.Substring(indexCaptura).IndexOf("</p>")));
+                                    publicacao = new Facilities().ObterStringLimpa(texto.Substring(indexCaptura).Substring(0, texto.Substring(indexCaptura).IndexOf("</p>")));
                                 }
 
-                                if (titulo.Equals(string.Empty) || publicacao.Equals(string.Empty))
-                                    titulo = titulo;
-
-                                contX = contX;
-                                urlTratada = urlTratada;
-
-                                hash = GerarHash(removerCaracterEspecial(removeTagScript(Regex.Replace(texto, @"\s+", " "))));
+                                hash = new Facilities().GerarHash(new Facilities().removerCaracterEspecial(new Facilities().removeTagScript(Regex.Replace(texto, @"\s+", " "))));
 
                                 /*Ementa*/
 
                                 listaExt = Regex.Split(texto.ToLower(), "<p class=a3ementa").ToList();
 
                                 listaExt.RemoveAt(0);
-                                listaExt.RemoveAll(x => ObterStringLimpa("<" + x).Trim().Equals(string.Empty));
-                                listaExt.ForEach(x => ementa = ementa.Equals(string.Empty) ? ObterStringLimpa("<" + x, "</p>") : ementa);
+                                listaExt.RemoveAll(x => new Facilities().ObterStringLimpa("<" + x).Trim().Equals(string.Empty));
+                                listaExt.ForEach(x => ementa = ementa.Equals(string.Empty) ? new Facilities().ObterStringLimpa("<" + x, "</p>") : ementa);
 
                                 if (ementa.Equals(string.Empty))
                                 {
                                     listaExt = Regex.Split(texto.ToLower(), "<p class=ementa").ToList();
 
                                     listaExt.RemoveAt(0);
-                                    listaExt.RemoveAll(x => ObterStringLimpa("<" + x).Trim().Equals(string.Empty));
-                                    listaExt.ForEach(x => ementa = ementa.Equals(string.Empty) ? ObterStringLimpa("<" + x, "</p>") : ementa);
+                                    listaExt.RemoveAll(x => new Facilities().ObterStringLimpa("<" + x).Trim().Equals(string.Empty));
+                                    listaExt.ForEach(x => ementa = ementa.Equals(string.Empty) ? new Facilities().ObterStringLimpa("<" + x, "</p>") : ementa);
                                 }
 
                                 if (ementa.Equals(string.Empty) && texto.Contains("<p class=msotitle") && !texto.Contains("<p class=msosubtitle"))
@@ -5068,15 +5004,15 @@ namespace Systax_BuscaLegal
                                     listaExt = Regex.Split(texto.ToLower(), "<p class=msobodytext").ToList();
 
                                     listaExt.RemoveAt(0);
-                                    listaExt.RemoveAll(x => ObterStringLimpa("<" + x).Trim().Equals(string.Empty));
-                                    listaExt.ForEach(x => ementa = ementa.Equals(string.Empty) ? ObterStringLimpa("<" + x, "</p>") : ementa);
+                                    listaExt.RemoveAll(x => new Facilities().ObterStringLimpa("<" + x).Trim().Equals(string.Empty));
+                                    listaExt.ForEach(x => ementa = ementa.Equals(string.Empty) ? new Facilities().ObterStringLimpa("<" + x, "</p>") : ementa);
                                 }
 
                                 if (ementa.Equals(string.Empty) && texto.Contains("<p class=msotitle") && texto.Contains("<p class=msosubtitle"))
                                 {
                                     listaExt = Regex.Split(texto.ToLower(), "<p class=msotitle").ToList();
 
-                                    ementa = ObterStringLimpa("<" + listaExt[listaExt.Count - 1].Substring(0, listaExt[listaExt.Count - 1].IndexOf("</p>")));
+                                    ementa = new Facilities().ObterStringLimpa("<" + listaExt[listaExt.Count - 1].Substring(0, listaExt[listaExt.Count - 1].IndexOf("</p>")));
                                 }
 
                                 if (ementa.Equals(string.Empty) && texto.Contains("<p class=msobodytext"))
@@ -5084,8 +5020,8 @@ namespace Systax_BuscaLegal
                                     listaExt = Regex.Split(texto.ToLower(), "<p class=msobodytextindent3").ToList();
 
                                     listaExt.RemoveAt(0);
-                                    listaExt.RemoveAll(x => ObterStringLimpa("<" + x).Trim().Equals(string.Empty));
-                                    listaExt.ForEach(x => ementa = ementa.Equals(string.Empty) ? ObterStringLimpa("<" + x, "</p>") : ementa);
+                                    listaExt.RemoveAll(x => new Facilities().ObterStringLimpa("<" + x).Trim().Equals(string.Empty));
+                                    listaExt.ForEach(x => ementa = ementa.Equals(string.Empty) ? new Facilities().ObterStringLimpa("<" + x, "</p>") : ementa);
                                 }
 
                                 if (ementa.Equals(string.Empty) && texto.Contains("<p class=msoblocktext style"))
@@ -5093,8 +5029,8 @@ namespace Systax_BuscaLegal
                                     listaExt = Regex.Split(texto.ToLower(), "<p class=msoblocktext style").ToList();
 
                                     listaExt.RemoveAt(0);
-                                    listaExt.RemoveAll(x => ObterStringLimpa("<" + x).Trim().Equals(string.Empty));
-                                    listaExt.ForEach(x => ementa = ementa.Equals(string.Empty) ? ObterStringLimpa("<" + x, "</p>") : ementa);
+                                    listaExt.RemoveAll(x => new Facilities().ObterStringLimpa("<" + x).Trim().Equals(string.Empty));
+                                    listaExt.ForEach(x => ementa = ementa.Equals(string.Empty) ? new Facilities().ObterStringLimpa("<" + x, "</p>") : ementa);
                                 }
 
                                 /*Captura CSS*/
@@ -5147,7 +5083,7 @@ namespace Systax_BuscaLegal
 
                             //numero = titulo.Contains("/") ? titulo.Substring(0, titulo.IndexOf("/")).Trim() : titulo.Trim();
 
-                            especie = titulo.Substring(0, obterPontoCorte(titulo)).Trim();
+                            especie = titulo.Substring(0, new Facilities().obterPontoCorte(titulo)).Trim();
 
                             if (numero.Equals(string.Empty))
                                 numero = "0";
@@ -5176,13 +5112,8 @@ namespace Systax_BuscaLegal
 
                             new BuscaLegalDao().AtualizarFontes(new List<dynamic>() { itemFonte });
                         }
-                        catch (Exception ex)
+                        catch (Exception)
                         {
-                            if (!ex.Message.Equals("O servidor remoto retornou um erro: (404) Não Localizado."))
-                                ex = ex;
-
-                            ex.Source = "Docs > confaz > lv1";
-                            new BuscaLegalDao().InserirLogErro(ex, urlTratada, string.Empty);
                         }
                     }
                 }
@@ -5198,13 +5129,13 @@ namespace Systax_BuscaLegal
 
             if (modoProcessamento.Equals("f") || modoProcessamento.Equals("u1"))
             {
-                webBrowser1 = new WebBrowser();
+                webBrowserGERAL = new WebBrowser();
 
-                webBrowser1.ScriptErrorsSuppressed = true;
+                webBrowserGERAL.ScriptErrorsSuppressed = true;
 
-                webBrowser1.Navigate("http://www.sefaz.ba.gov.br/motordebusca/pesquisa/Default.aspx?");
+                webBrowserGERAL.Navigate("http://www.sefaz.ba.gov.br/motordebusca/pesquisa/Default.aspx?");
 
-                webBrowser1.DocumentCompleted += new WebBrowserDocumentCompletedEventHandler(webBrowser1_DocumentCompleted_SefazBa);
+                webBrowserGERAL.DocumentCompleted += new WebBrowserDocumentCompletedEventHandler(webBrowser1_DocumentCompleted_SefazBa);
             }
 
             #endregion
@@ -5247,7 +5178,7 @@ namespace Systax_BuscaLegal
                                 webclient.DownloadFile(urlTratada, nomeArq);
                             }
 
-                            string dadosPdf = LeArquivo(nomeArq);
+                            string dadosPdf = new Facilities().LeArquivo(nomeArq);
 
                             byte[] arrayFile = File.ReadAllBytes(nomeArq);
 
@@ -5300,7 +5231,7 @@ namespace Systax_BuscaLegal
 
                             titulo.ToList().ForEach(delegate(char x) { numero += char.IsNumber(x) && (numero.Equals(string.Empty) || !numero.Contains(".")) ? x.ToString() : numero.Equals(string.Empty) ? string.Empty : "."; });
 
-                            especie = titulo.Substring(0, obterPontoCorte(titulo)).Trim();
+                            especie = titulo.Substring(0, new Facilities().obterPontoCorte(titulo)).Trim();
 
                             publicacao = listDados[1];
 
@@ -5325,7 +5256,7 @@ namespace Systax_BuscaLegal
                             ementaInserir.NumeroAto = Regex.Replace(numero, "[^0-9]+", string.Empty);
                             ementaInserir.DataEdicao = edicao;
                             ementaInserir.Texto = dadosPdf.Replace(nomeForRep, string.Empty);
-                            ementaInserir.Hash = GerarHash(removerCaracterEspecial(dadosPdf));
+                            ementaInserir.Hash = new Facilities().GerarHash(new Facilities().removerCaracterEspecial(dadosPdf));
                             ementaInserir.IdFila = itemLista_Nivel2.Id;
 
                             ementaInserir.Escopo = "BA";
@@ -5341,9 +5272,6 @@ namespace Systax_BuscaLegal
                         }
                         catch (Exception ex)
                         {
-                            if (!ex.Message.Equals("O servidor remoto retornou um erro: (404) Não Localizado."))
-                                ex = ex;
-
                             ex.Source = "Docs > sefazBa > lv1";
                             new BuscaLegalDao().InserirLogErro(ex, urlTratada, string.Empty);
                         }
@@ -5508,21 +5436,21 @@ namespace Systax_BuscaLegal
                                         listaExt = Regex.Split(textoAjustado.ToLower(), item.Split('|')[1]).ToList();
 
                                         listaExt.RemoveAt(0);
-                                        listaExt.RemoveAll(x => ObterStringLimpa("<" + x).Trim().Equals(string.Empty) ||
-                                                                    ObterStringLimpa("<" + x, "</p>").Trim().Length > 100 ||
-                                                                        (!ObterStringLimpa("<" + x, "</p>").Contains("doe") &&
-                                                                            !ObterStringLimpa("<" + x, "</p>").Contains("d.o") &&
-                                                                                !ObterStringLimpa("<" + x, "</p>").Contains("d.º") &&
-                                                                                    !ObterStringLimpa("<" + x, "</p>").Contains("do:") &&
-                                                                                        !ObterStringLimpa("<" + x, "</p>").Contains("dio") &&
-                                                                                            !ObterStringLimpa("<" + x, "</p>").Contains("d.i.o") &&
-                                                                                                !ObterStringLimpa("<" + x, "</p>").Contains("d. o . e") &&
-                                                                                                    !ObterStringLimpa("<" + x, "</p>").Contains("dou")));
+                                        listaExt.RemoveAll(x => new Facilities().ObterStringLimpa("<" + x).Trim().Equals(string.Empty) ||
+                                                                   new Facilities().ObterStringLimpa("<" + x, "</p>").Trim().Length > 100 ||
+                                                                        (!new Facilities().ObterStringLimpa("<" + x, "</p>").Contains("doe") &&
+                                                                            !new Facilities().ObterStringLimpa("<" + x, "</p>").Contains("d.o") &&
+                                                                                !new Facilities().ObterStringLimpa("<" + x, "</p>").Contains("d.º") &&
+                                                                                    !new Facilities().ObterStringLimpa("<" + x, "</p>").Contains("do:") &&
+                                                                                        !new Facilities().ObterStringLimpa("<" + x, "</p>").Contains("dio") &&
+                                                                                            !new Facilities().ObterStringLimpa("<" + x, "</p>").Contains("d.i.o") &&
+                                                                                                !new Facilities().ObterStringLimpa("<" + x, "</p>").Contains("d. o . e") &&
+                                                                                                    !new Facilities().ObterStringLimpa("<" + x, "</p>").Contains("dou")));
 
                                         listaExt.ForEach(x => publicacao = publicacao.Equals(string.Empty) ||
                                                                 publicacao.Equals("governo do estado do espírito santo secretaria de estado da fazenda") ||
                                                                     publicacao.Equals("governo do estado do espírito santo") ||
-                                                                        publicacao.Equals("minuta") ? ObterStringLimpa("<" + x, item.Split('|')[2]) : publicacao);
+                                                                        publicacao.Equals("minuta") ? new Facilities().ObterStringLimpa("<" + x, item.Split('|')[2]) : publicacao);
 
                                         listaExt = Regex.Split(textoAjustado.ToLower(), item.Split('|')[1]).ToList().Select(x => textoAjustado.IndexOf(x) + "|" + x).ToList();
 
@@ -5531,11 +5459,11 @@ namespace Systax_BuscaLegal
 
                                         listaExt = listaExt.Where(y => int.Parse(y.Split('|')[0]) < (indexCorte + 500) && int.Parse(y.Split('|')[0]) > indexMin).ToList();
 
-                                        listaExt.RemoveAll(x => ObterStringLimpa("<" + x).Trim().Equals(string.Empty) || publicacao.Equals(ObterStringLimpa("<" + x, item.Split('|')[2]).Trim()) || ObterStringLimpa("<" + x, item.Split('|')[2]).Trim().Length > 80);
+                                        listaExt.RemoveAll(x => new Facilities().ObterStringLimpa("<" + x).Trim().Equals(string.Empty) || publicacao.Equals(new Facilities().ObterStringLimpa("<" + x, item.Split('|')[2]).Trim()) || new Facilities().ObterStringLimpa("<" + x, item.Split('|')[2]).Trim().Length > 80);
                                         listaExt.ForEach(x => titulo = titulo.Equals(string.Empty) ||
                                                                 titulo.Equals("governo do estado do espírito santo secretaria de estado da fazenda") ||
                                                                     titulo.Equals("governo do estado do espírito santo") ||
-                                                                        titulo.Equals("minuta") ? ObterStringLimpa("<" + x, item.Split('|')[2]) : titulo);
+                                                                        titulo.Equals("minuta") ? new Facilities().ObterStringLimpa("<" + x, item.Split('|')[2]) : titulo);
                                     }
                                     else
                                     {
@@ -5544,34 +5472,34 @@ namespace Systax_BuscaLegal
                                         string compTag = item.Split('|')[3].Equals("1") ? string.Empty : "<";
 
                                         listaExt.RemoveAt(0);
-                                        listaExt.RemoveAll(x => ObterStringLimpa(compTag + x).Trim().Equals(string.Empty) || ObterStringLimpa(compTag + x, item.Split('|')[2]).Trim().Length > 100 || !x.Contains(regOrdem));
+                                        listaExt.RemoveAll(x => new Facilities().ObterStringLimpa(compTag + x).Trim().Equals(string.Empty) || new Facilities().ObterStringLimpa(compTag + x, item.Split('|')[2]).Trim().Length > 100 || !x.Contains(regOrdem));
                                         listaExt.ForEach(x => titulo = titulo.Equals(string.Empty) ||
                                                                     titulo.Equals("governo do estado do espírito santo secretaria de estado da fazenda") ||
                                                                         titulo.Equals("governo do estado do espírito santo") ||
-                                                                            titulo.Equals("minuta") ? ObterStringLimpa(compTag + x, item.Split('|')[2]) : titulo);
+                                                                            titulo.Equals("minuta") ? new Facilities().ObterStringLimpa(compTag + x, item.Split('|')[2]) : titulo);
 
                                         listaExt = Regex.Split(textoAjustado.ToLower(), item.Split('|')[1]).ToList();
 
                                         listaExt.RemoveAt(0);
-                                        listaExt.RemoveAll(x => ObterStringLimpa(compTag + x).Trim().Equals(string.Empty) || titulo.Equals(ObterStringLimpa(compTag + x, item.Split('|')[2]).Trim()) || ObterStringLimpa(compTag + x, item.Split('|')[2]).Trim().Length > 100 || (ObterStringLimpa(compTag + x, item.Split('|')[2]).Trim().Equals(string.Empty) && ObterStringLimpa(compTag + x).Trim().Length > 100));
+                                        listaExt.RemoveAll(x => new Facilities().ObterStringLimpa(compTag + x).Trim().Equals(string.Empty) || titulo.Equals(new Facilities().ObterStringLimpa(compTag + x, item.Split('|')[2]).Trim()) || new Facilities().ObterStringLimpa(compTag + x, item.Split('|')[2]).Trim().Length > 100 || (new Facilities().ObterStringLimpa(compTag + x, item.Split('|')[2]).Trim().Equals(string.Empty) && new Facilities().ObterStringLimpa(compTag + x).Trim().Length > 100));
                                         listaExt.ForEach(x => publicacao = publicacao.Equals(string.Empty) ||
                                                                     publicacao.Equals("governo do estado do espírito santo secretaria de estado da fazenda") ||
                                                                         publicacao.Equals("governo do estado do espírito santo") ||
-                                                                            publicacao.Equals("minuta") ? ObterStringLimpa(compTag + x, item.Split('|')[2]) : publicacao);
+                                                                            publicacao.Equals("minuta") ? new Facilities().ObterStringLimpa(compTag + x, item.Split('|')[2]) : publicacao);
                                     }
                                 }
 
                                 listaExt = Regex.Split(textoAjustado.ToLower(), item.Split('|')[1]).ToList();
 
                                 listaExt.RemoveAt(0);
-                                listaExt.RemoveAll(x => ObterStringLimpa("<" + x).Trim().Equals(string.Empty) ||
-                                                            publicacao.Equals(ObterStringLimpa("<" + x, item.Split('|')[2]).Trim()) ||
-                                                               titulo.Equals(ObterStringLimpa("<" + x, item.Split('|')[2]).Trim()));
+                                listaExt.RemoveAll(x => new Facilities().ObterStringLimpa("<" + x).Trim().Equals(string.Empty) ||
+                                                            publicacao.Equals(new Facilities().ObterStringLimpa("<" + x, item.Split('|')[2]).Trim()) ||
+                                                               titulo.Equals(new Facilities().ObterStringLimpa("<" + x, item.Split('|')[2]).Trim()));
 
                                 listaExt.ForEach(x => ementa = ementa.Equals(string.Empty) ||
                                                         ementa.Equals("governo do estado do espírito santo secretaria de estado da fazenda") ||
                                                             ementa.Equals("governo do estado do espírito santo") ||
-                                                                ementa.Equals("minuta") ? ObterStringLimpa("<" + x, item.Split('|')[2]) : ementa);
+                                                                ementa.Equals("minuta") ? new Facilities().ObterStringLimpa("<" + x, item.Split('|')[2]) : ementa);
 
                                 countItens++;
 
@@ -5604,18 +5532,12 @@ namespace Systax_BuscaLegal
                                 indexCaptura = texto.IndexOf("efeitos a partir de") > 0 && (texto.IndexOf("efeitos a partir de") < indexCaptura || indexCaptura <= 0) ? texto.IndexOf("efeitos a partir de") : indexCaptura;
 
                                 if (indexCaptura > 0)
-                                    publicacao = ObterStringLimpa(texto.Substring(indexCaptura).Substring(0, texto.Substring(indexCaptura).IndexOf("</p>")));
+                                    publicacao = new Facilities().ObterStringLimpa(texto.Substring(indexCaptura).Substring(0, texto.Substring(indexCaptura).IndexOf("</p>")));
                                 else
                                     publicacao = string.Empty;
                             }
 
-                            if (titulo.Equals(string.Empty) || publicacao.Equals(string.Empty))
-                                titulo = titulo;
-
-                            contX = contX;
-                            urlTratada = urlTratada;
-
-                            hash = GerarHash(removerCaracterEspecial(removeTagScript(Regex.Replace(texto, @"\s+", " "))));
+                            hash = new Facilities().GerarHash(new Facilities().removerCaracterEspecial(new Facilities().removeTagScript(Regex.Replace(texto, @"\s+", " "))));
 
                             /*Captura CSS*/
 
@@ -5664,7 +5586,7 @@ namespace Systax_BuscaLegal
 
                             titulo.ToList().ForEach(delegate(char x) { numero += char.IsNumber(x) && (numero.Equals(string.Empty) || !numero.Contains(".")) ? x.ToString() : numero.Equals(string.Empty) ? string.Empty : "."; });
 
-                            especie = titulo.Substring(0, obterPontoCorte(titulo)).Trim();
+                            especie = titulo.Substring(0, new Facilities().obterPontoCorte(titulo)).Trim();
 
                             if (numero.Equals(string.Empty))
                                 numero = "0";
@@ -5695,9 +5617,6 @@ namespace Systax_BuscaLegal
                         }
                         catch (Exception ex)
                         {
-                            if (!ex.Message.Equals("O servidor remoto retornou um erro: (404) Não Localizado."))
-                                ex = ex;
-
                             ex.Source = "Docs > confaz > lv1";
                             new BuscaLegalDao().InserirLogErro(ex, urlTratada, string.Empty);
                         }
@@ -5730,7 +5649,7 @@ namespace Systax_BuscaLegal
                         objUrll.Url = string.Format(prefixUrl, itemUrlDF, string.Empty, string.Empty);
                         objUrll.Lista_Nivel2 = new List<dynamic>();
 
-                        resposta = getHtmlPaginaByGet(objUrll.Url, string.Empty);
+                        resposta = new Facilities().getHtmlPaginaByGet(objUrll.Url, string.Empty);
 
                         if (resposta.ToLower().Contains("refine mais sua pesquisa!"))
                         {
@@ -5741,7 +5660,7 @@ namespace Systax_BuscaLegal
                             {
                                 string urlFormatada = string.Format(prefixUrl, itemUrlDF, dataInicial.ToString("dd/MM/yyyy"), dataInicial.AddYears(intervalo).ToString("dd/MM/yyyy"));
 
-                                resposta = getHtmlPaginaByGet(urlFormatada, string.Empty);
+                                resposta = new Facilities().getHtmlPaginaByGet(urlFormatada, string.Empty);
 
                                 if (resposta.ToLower().Contains("refine mais sua pesquisa!"))
                                     intervalo--;
@@ -5863,7 +5782,7 @@ namespace Systax_BuscaLegal
                             itemListaVez.Url = urlTratada;
                             itemListaVez.IdUrl = itemLista_Nivel2.IdUrl;
 
-                            string respostaNivel2_ = getHtmlPaginaByGet(urlTratada, string.Empty);
+                            string respostaNivel2_ = new Facilities().getHtmlPaginaByGet(urlTratada, string.Empty);
                             List<string> listString = new List<string>();
 
                             respostaNivel2_ = System.Net.WebUtility.HtmlDecode(respostaNivel2_.Replace("\"", "").Replace("\n", " ").Replace("\r", " ").Replace("\t", " ")).ToLower();
@@ -5883,22 +5802,22 @@ namespace Systax_BuscaLegal
 
                             if (respostaNivel2_.IndexOf("<title") > 0)
                             {
-                                keyTitulo = ObterStringLimpa(respostaNivel2_.Substring(respostaNivel2_.IndexOf("<title")).Substring(0, respostaNivel2_.Substring(respostaNivel2_.IndexOf("<title")).IndexOf("</title>"))).Trim().Split(' ')[0];
+                                keyTitulo = new Facilities().ObterStringLimpa(respostaNivel2_.Substring(respostaNivel2_.IndexOf("<title")).Substring(0, respostaNivel2_.Substring(respostaNivel2_.IndexOf("<title")).IndexOf("</title>"))).Trim().Split(' ')[0];
 
                                 keyTitulo = keyTitulo.Split(' ')[0] + " ";
 
                                 if (texto.IndexOf(keyTitulo) > 0)
                                     titulo = texto.Substring(texto.IndexOf(keyTitulo)).Substring(0, texto.Substring(texto.IndexOf(keyTitulo)).IndexOf("</p>"));
                                 else
-                                    titulo = ObterStringLimpa(texto.Substring(0, texto.IndexOf("</p>")));
+                                    titulo = new Facilities().ObterStringLimpa(texto.Substring(0, texto.IndexOf("</p>")));
                             }
                             else
-                                titulo = ObterStringLimpa(texto.Substring(0, texto.IndexOf("</p>")));
+                                titulo = new Facilities().ObterStringLimpa(texto.Substring(0, texto.IndexOf("</p>")));
 
                             //keyTitulo = keyTitulo.Split(' ')[0] + " ";
                             //titulo = texto.Substring(texto.IndexOf(keyTitulo)).Substring(0, texto.Substring(texto.IndexOf(keyTitulo)).IndexOf("</p>"));
 
-                            titulo = ObterStringLimpa(titulo);
+                            titulo = new Facilities().ObterStringLimpa(titulo);
 
                             listString = new List<string>();
 
@@ -5912,15 +5831,9 @@ namespace Systax_BuscaLegal
                             if (listString.Count > 0)
                                 publicacao = texto.Substring(texto.IndexOf(listString[0].Split('|')[1])).Substring(0, texto.Substring(texto.IndexOf(listString[0].Split('|')[1])).IndexOf("</p>"));
 
-                            publicacao = ObterStringLimpa(publicacao);
+                            publicacao = new Facilities().ObterStringLimpa(publicacao);
 
-                            if (titulo.Equals(string.Empty) || publicacao.Equals(string.Empty))
-                                titulo = titulo;
-
-                            contX = contX;
-                            urlTratada = urlTratada;
-
-                            hash = GerarHash(removerCaracterEspecial(removeTagScript(Regex.Replace(texto, @"\s+", " "))));
+                            hash = new Facilities().GerarHash(new Facilities().removerCaracterEspecial(new Facilities().removeTagScript(Regex.Replace(texto, @"\s+", " "))));
 
                             /*Captura CSS*/
 
@@ -5969,7 +5882,7 @@ namespace Systax_BuscaLegal
 
                             titulo.ToList().ForEach(delegate(char x) { numero += char.IsNumber(x) && (numero.Equals(string.Empty) || !numero.Contains(".")) ? x.ToString() : numero.Equals(string.Empty) ? string.Empty : "."; });
 
-                            especie = titulo.Substring(0, obterPontoCorte(titulo)).Trim();
+                            especie = titulo.Substring(0, new Facilities().obterPontoCorte(titulo)).Trim();
 
                             if (numero.Equals(string.Empty))
                                 numero = "0";
@@ -6000,9 +5913,6 @@ namespace Systax_BuscaLegal
                         }
                         catch (Exception ex)
                         {
-                            if (!ex.Message.Equals("O servidor remoto retornou um erro: (404) Não Localizado."))
-                                ex = ex;
-
                             ex.Source = "Docs > sefazEs > lv1";
                             new BuscaLegalDao().InserirLogErro(ex, urlTratada, string.Empty);
                         }
@@ -6113,7 +6023,7 @@ namespace Systax_BuscaLegal
                             itemListaVez.Url = urlTratada;
                             itemListaVez.IdUrl = itemLista_Nivel2.IdUrl;
 
-                            string respostaNivel2_ = getHtmlPaginaByGet(urlTratada, "default");
+                            string respostaNivel2_ = new Facilities().getHtmlPaginaByGet(urlTratada, "default");
                             List<string> listString = new List<string>();
 
                             respostaNivel2_ = System.Net.WebUtility.HtmlDecode(respostaNivel2_.Replace("\"", "").Replace("\n", " ").Replace("\r", " ").Replace("\t", " ")).ToLower();
@@ -6132,19 +6042,19 @@ namespace Systax_BuscaLegal
 
                             if (respostaNivel2_.IndexOf("<title") > 0)
                             {
-                                keyTitulo = ObterStringLimpa(respostaNivel2_.Substring(respostaNivel2_.IndexOf("<title")).Substring(0, respostaNivel2_.Substring(respostaNivel2_.IndexOf("<title")).IndexOf("</title>"))).Trim().Split(' ')[0];
+                                keyTitulo = new Facilities().ObterStringLimpa(respostaNivel2_.Substring(respostaNivel2_.IndexOf("<title")).Substring(0, respostaNivel2_.Substring(respostaNivel2_.IndexOf("<title")).IndexOf("</title>"))).Trim().Split(' ')[0];
 
                                 keyTitulo = keyTitulo.Split(' ')[0] + " ";
 
                                 if (texto.IndexOf(keyTitulo) > 0)
                                     titulo = texto.Substring(texto.IndexOf(keyTitulo)).Substring(0, texto.Substring(texto.IndexOf(keyTitulo)).IndexOf("</p>"));
                                 else
-                                    titulo = ObterStringLimpa(texto.Substring(0, texto.IndexOf("</p>")));
+                                    titulo = new Facilities().ObterStringLimpa(texto.Substring(0, texto.IndexOf("</p>")));
                             }
                             else
-                                titulo = ObterStringLimpa(texto.Substring(0, texto.IndexOf("</p>")));
+                                titulo = new Facilities().ObterStringLimpa(texto.Substring(0, texto.IndexOf("</p>")));
 
-                            titulo = ObterStringLimpa(titulo);
+                            titulo = new Facilities().ObterStringLimpa(titulo);
 
                             publicacao = titulo.IndexOf("(") > 0 ? titulo.Substring(titulo.IndexOf("(")) : string.Empty;
 
@@ -6163,13 +6073,7 @@ namespace Systax_BuscaLegal
                                     publicacao = texto.Substring(texto.IndexOf(listPub[0].Split('|')[1])).Substring(0, texto.Substring(texto.IndexOf(listPub[0].Split('|')[1])).IndexOf("</p>"));
                             }
 
-                            if (titulo.Equals(string.Empty) || publicacao.Equals(string.Empty))
-                                titulo = titulo;
-
-                            contX = contX;
-                            urlTratada = urlTratada;
-
-                            hash = GerarHash(removerCaracterEspecial(removeTagScript(Regex.Replace(texto, @"\s+", " "))));
+                            hash = new Facilities().GerarHash(new Facilities().removerCaracterEspecial(new Facilities().removeTagScript(Regex.Replace(texto, @"\s+", " "))));
 
                             /*Captura CSS*/
 
@@ -6218,7 +6122,7 @@ namespace Systax_BuscaLegal
 
                             titulo.ToList().ForEach(delegate(char x) { numero += char.IsNumber(x) && (numero.Equals(string.Empty) || !numero.Contains(".")) ? x.ToString() : numero.Equals(string.Empty) ? string.Empty : "."; });
 
-                            especie = titulo.Substring(0, obterPontoCorte(titulo)).Trim();
+                            especie = titulo.Substring(0, new Facilities().obterPontoCorte(titulo)).Trim();
 
                             if (numero.Equals(string.Empty))
                                 numero = "0";
@@ -6249,9 +6153,6 @@ namespace Systax_BuscaLegal
                         }
                         catch (Exception ex)
                         {
-                            if (!ex.Message.Equals("O servidor remoto retornou um erro: (404) Não Localizado."))
-                                ex = ex;
-
                             ex.Source = "Docs > sefazMG > lv1";
                             new BuscaLegalDao().InserirLogErro(ex, urlTratada, string.Empty);
                         }
@@ -6372,7 +6273,7 @@ namespace Systax_BuscaLegal
                             itemListaVez.Url = urlTratada;
                             itemListaVez.IdUrl = itemLista_Nivel2.IdUrl;
 
-                            string respostaNivel2_ = getHtmlPaginaByGet(urlTratada, "default");
+                            string respostaNivel2_ = new Facilities().getHtmlPaginaByGet(urlTratada, "default");
                             List<string> listString = new List<string>();
 
                             respostaNivel2_ = System.Net.WebUtility.HtmlDecode(respostaNivel2_.Replace("\"", string.Empty).Replace("\n", " ").Replace("\r", " ").Replace("\t", " ")).ToLower();
@@ -6416,12 +6317,12 @@ namespace Systax_BuscaLegal
                                 texto = respostaNivel2_.Substring(respostaNivel2_.IndexOf(listString[0].Split('|')[0])).Substring(0, respostaNivel2_.Substring(respostaNivel2_.IndexOf(listString[0].Split('|')[0])).IndexOf(listString[0].Split('|')[1]));
 
                                 titulo = texto.Substring(texto.IndexOf(listString[0].Split('|')[2])).Substring(0, texto.Substring(texto.IndexOf(listString[0].Split('|')[2])).IndexOf(listString[0].Split('|')[3]));
-                                titulo = ObterStringLimpa(titulo);
+                                titulo = new Facilities().ObterStringLimpa(titulo);
 
                                 publicacao = texto.Substring(texto.IndexOf(listString[0].Split('|')[4]) + listString[0].Split('|')[4].Length).Substring(0, texto.Substring(texto.IndexOf(listString[0].Split('|')[4]) + listString[0].Split('|')[4].Length).IndexOf(listString[0].Split('|')[5]));
-                                publicacao = ObterStringLimpa(publicacao);
+                                publicacao = new Facilities().ObterStringLimpa(publicacao);
 
-                                hash = GerarHash(removerCaracterEspecial(removeTagScript(Regex.Replace(texto, @"\s+", " "))));
+                                hash = new Facilities().GerarHash(new Facilities().removerCaracterEspecial(new Facilities().removeTagScript(Regex.Replace(texto, @"\s+", " "))));
 
                                 /*Captura CSS*/
 
@@ -6470,7 +6371,7 @@ namespace Systax_BuscaLegal
 
                             titulo.ToList().ForEach(delegate(char x) { numero += char.IsNumber(x) && (numero.Equals(string.Empty) || !numero.Contains(".")) ? x.ToString() : numero.Equals(string.Empty) ? string.Empty : "."; });
 
-                            especie = titulo.Substring(0, obterPontoCorte(titulo)).Trim();
+                            especie = titulo.Substring(0, new Facilities().obterPontoCorte(titulo)).Trim();
 
                             if (numero.Equals(string.Empty))
                                 numero = "0";
@@ -6512,9 +6413,9 @@ namespace Systax_BuscaLegal
                     }
                 }
 
-                string novoNcm = "TITULO\n";
-                listaXxx.ForEach(x => novoNcm += x.Replace("\n", "|") + "\n");
-                File.WriteAllText(@"C:\Temp\UrlErrosSefazRj.csv", novoNcm);
+                //string novoNcm = "TITULO\n";
+                //listaXxx.ForEach(x => novoNcm += x.Replace("\n", "|") + "\n");
+                //File.WriteAllText(@"C:\Temp\UrlErrosSefazRj.csv", novoNcm);
             }
 
             #endregion
@@ -6527,8 +6428,6 @@ namespace Systax_BuscaLegal
 
             if (modoProcessamento.Equals("f") || modoProcessamento.Equals("u1"))
             {
-                this.Text = "Fonte: Sefaz SP";
-
                 var listaUrlsSP = new List<string>(){"http://info.fazenda.sp.gov.br/NXT/gateway.dll/legislacao_tributaria/agendas/legistrib2.htm"/*,
                                                      "http://info.fazenda.sp.gov.br/NXT/gateway.dll/?f=templates$fn=document-frame.htm$3.0"*/};
 
@@ -6568,7 +6467,7 @@ namespace Systax_BuscaLegal
                             reader = new StreamReader(dataStream, Encoding.Default);
 
                             resposta = reader.ReadToEnd().Replace("\"", string.Empty).Replace("\t", " ").Replace("\n", " ").Replace("\r", " ");
-                            resposta = removeTagScript(resposta);
+                            resposta = new Facilities().removeTagScript(resposta);
 
                             var listFinalURl = Regex.Split(resposta, "href=").ToList();
 
@@ -6603,8 +6502,6 @@ namespace Systax_BuscaLegal
 
             if (modoProcessamento.Equals("f") || modoProcessamento.Equals("d") && siglaFonteProcessamento.Equals("sefazSp"))
             {
-                this.Text = "Fonte: Sefaz SP";
-
                 string hash = string.Empty;
                 string texto = string.Empty;
                 string titulo = string.Empty;
@@ -6617,8 +6514,6 @@ namespace Systax_BuscaLegal
 
                 var listaExt = new List<string>();
                 dynamic ementaInserir;
-
-                this.label1.Text = "Status: Processando";
 
                 foreach (var nivel1_item in listaUrl)
                 {
@@ -6674,7 +6569,7 @@ namespace Systax_BuscaLegal
                             if (respostaNivel2_.Contains("<title"))
                             {
                                 titulo = respostaNivel2_.Substring(respostaNivel2_.IndexOf("<title")).Substring(0, respostaNivel2_.Substring(respostaNivel2_.IndexOf("<title")).IndexOf("</title>"));
-                                titulo = ObterStringLimpa(titulo);
+                                titulo = new Facilities().ObterStringLimpa(titulo);
 
                                 listString = new List<string>();
 
@@ -6689,7 +6584,7 @@ namespace Systax_BuscaLegal
                                 else if (titulo.Contains(","))
                                     publicacao = titulo.Substring(titulo.IndexOf(",") + 1);
 
-                                publicacao = ObterStringLimpa(publicacao);
+                                publicacao = new Facilities().ObterStringLimpa(publicacao);
                             }
                             else
                             {
@@ -6697,7 +6592,7 @@ namespace Systax_BuscaLegal
                                 publicacao = string.Empty;
                             }
 
-                            hash = GerarHash(removerCaracterEspecial(removeTagScript(Regex.Replace(texto, @"\s+", " "))));
+                            hash = new Facilities().GerarHash(new Facilities().removerCaracterEspecial(new Facilities().removeTagScript(Regex.Replace(texto, @"\s+", " "))));
 
                             /*Captura CSS*/
 
@@ -6745,7 +6640,7 @@ namespace Systax_BuscaLegal
 
                             titulo.ToList().ForEach(delegate(char x) { numero += char.IsNumber(x) && (numero.Equals(string.Empty) || !numero.Contains(".")) ? x.ToString() : numero.Equals(string.Empty) ? string.Empty : "."; });
 
-                            especie = titulo.Substring(0, obterPontoCorte(titulo)).Trim();
+                            especie = titulo.Substring(0, new Facilities().obterPontoCorte(titulo)).Trim();
 
                             if (numero.Equals(string.Empty))
                                 numero = "0";
@@ -6759,7 +6654,7 @@ namespace Systax_BuscaLegal
                             ementaInserir.Especie = especie;
                             ementaInserir.NumeroAto = Regex.Replace(numero, "[^0-9]+", string.Empty);
                             ementaInserir.DataEdicao = string.Empty;
-                            ementaInserir.Texto = Regex.Replace(removeTagScript(texto), @"\s+", " ");
+                            ementaInserir.Texto = Regex.Replace(new Facilities().removeTagScript(texto), @"\s+", " ");
                             ementaInserir.Hash = hash;
                             ementaInserir.IdFila = itemLista_Nivel2.Id;
 
@@ -6776,16 +6671,11 @@ namespace Systax_BuscaLegal
                         }
                         catch (Exception ex)
                         {
-                            if (!ex.Message.Equals("O servidor remoto retornou um erro: (404) Não Localizado."))
-                                ex = ex;
-
                             ex.Source = "Docs > sefazSP > lv1";
                             new BuscaLegalDao().InserirLogErro(ex, urlTratada, string.Empty);
                         }
                     }
                 }
-
-                label1.Text = "• Status: Concluído";
             }
 
             #endregion
@@ -6798,11 +6688,7 @@ namespace Systax_BuscaLegal
 
             if (modoProcessamento.Equals("f") || modoProcessamento.Equals("u1"))
             {
-                this.Text = "Fonte: Pref. São Paulo";
                 string urlRaiz = "http://legislacao.prefeitura.sp.gov.br/wp-json/cadlem_api/v1/busca?tipo[]=decreto&tipo[]=lei&tipo[]=orientacao-normativa&tipo[]=portaria&tipo[]=portaria-conjunta&tipo[]=portaria-intersecretarial&tipo[]=razoes-de-veto-oficios-atl&rppag=30&npag={0}";
-
-                label1.Text = "Processando...";
-                label1.Dispose();
 
                 int maxPages = 0;
                 int totalPages = 0;
@@ -6851,8 +6737,6 @@ namespace Systax_BuscaLegal
                     {
                     }
                 }
-
-                this.label1.Text = "Concluído";
             }
 
             #endregion
@@ -6861,8 +6745,6 @@ namespace Systax_BuscaLegal
 
             if (modoProcessamento.Equals("f") || modoProcessamento.Equals("d") && siglaFonteProcessamento.Equals("prefSp"))
             {
-                this.Text = "Fonte: Pref SP";
-
                 string hash = string.Empty;
                 string texto = string.Empty;
                 string titulo = string.Empty;
@@ -6875,8 +6757,6 @@ namespace Systax_BuscaLegal
 
                 var listaExt = new List<string>();
                 dynamic ementaInserir;
-
-                this.label1.Text = "Status: Processando";
 
                 foreach (var nivel1_item in listaUrl)
                 {
@@ -6902,7 +6782,7 @@ namespace Systax_BuscaLegal
                             itemListaVez.Url = urlTratada;
                             itemListaVez.IdUrl = itemLista_Nivel2.IdUrl;
 
-                            string respostaNivel2_ = getHtmlPaginaByGet(urlTratada, string.Empty);
+                            string respostaNivel2_ = new Facilities().getHtmlPaginaByGet(urlTratada, string.Empty);
 
                             List<string> listString = new List<string>();
 
@@ -6925,11 +6805,11 @@ namespace Systax_BuscaLegal
                             if (listString.Count > 0)
                             {
                                 titulo = respostaNivel2_.Substring(int.Parse(listString[0].Split('|')[0])).Substring(0, respostaNivel2_.Substring(int.Parse(listString[0].Split('|')[0])).IndexOf(listString[0].Split('|')[2])).Trim();
-                                titulo = ObterStringLimpa(titulo);
+                                titulo = new Facilities().ObterStringLimpa(titulo);
 
                                 publicacao = titulo.Substring(titulo.ToLower().IndexOf(" de") + 4);
 
-                                //publicacao = ObterStringLimpa(publicacao);
+                                //publicacao =new Facilities().ObterStringLimpa(publicacao);
                             }
                             else
                             {
@@ -6937,7 +6817,7 @@ namespace Systax_BuscaLegal
                                 publicacao = string.Empty;
                             }
 
-                            hash = GerarHash(removerCaracterEspecial(removeTagScript(Regex.Replace(texto, @"\s+", " "))));
+                            hash = new Facilities().GerarHash(new Facilities().removerCaracterEspecial(new Facilities().removeTagScript(Regex.Replace(texto, @"\s+", " "))));
 
                             /*Captura CSS*/
 
@@ -6984,7 +6864,7 @@ namespace Systax_BuscaLegal
 
                             titulo.ToList().ForEach(delegate(char x) { numero += char.IsNumber(x) && (numero.Equals(string.Empty) || !numero.Contains(".")) ? x.ToString() : numero.Equals(string.Empty) ? string.Empty : "."; });
 
-                            especie = titulo.Substring(0, obterPontoCorte(titulo)).Trim();
+                            especie = titulo.Substring(0, new Facilities().obterPontoCorte(titulo)).Trim();
 
                             if (numero.Equals(string.Empty))
                                 numero = "0";
@@ -6998,7 +6878,7 @@ namespace Systax_BuscaLegal
                             ementaInserir.Especie = especie;
                             ementaInserir.NumeroAto = Regex.Replace(numero, "[^0-9]+", string.Empty);
                             ementaInserir.DataEdicao = string.Empty;
-                            ementaInserir.Texto = Regex.Replace(removeTagScript(texto), @"\s+", " ");
+                            ementaInserir.Texto = Regex.Replace(new Facilities().removeTagScript(texto), @"\s+", " ");
                             ementaInserir.Hash = hash;
                             ementaInserir.IdFila = itemLista_Nivel2.Id;
 
@@ -7015,16 +6895,11 @@ namespace Systax_BuscaLegal
                         }
                         catch (Exception ex)
                         {
-                            if (!ex.Message.Equals("O servidor remoto retornou um erro: (404) Não Localizado."))
-                                ex = ex;
-
                             ex.Source = "Docs > prefSp > lv1";
                             new BuscaLegalDao().InserirLogErro(ex, urlTratada, string.Empty);
                         }
                     }
                 }
-
-                label1.Text = "Status: Concluído";
             }
 
             #endregion
@@ -7037,10 +6912,9 @@ namespace Systax_BuscaLegal
 
             if (modoProcessamento.Equals("f") || modoProcessamento.Equals("u1"))
             {
-                this.Text = "Fonte: Pref. RJ";
                 string linksPdf = string.Empty;
 
-                string htmlUrl = getHtmlPaginaByGet("http://www2.rio.rj.gov.br/smf/fcet/legislacao.asp", "default").Replace("\"", string.Empty);
+                string htmlUrl = new Facilities().getHtmlPaginaByGet("http://www2.rio.rj.gov.br/smf/fcet/legislacao.asp", "default").Replace("\"", string.Empty);
 
                 if (htmlUrl.ToLower().Contains("<table class=tablebranco"))
                 {
@@ -7075,8 +6949,6 @@ namespace Systax_BuscaLegal
 
             if (modoProcessamento.Equals("f") || modoProcessamento.Equals("d") && siglaFonteProcessamento.Equals("prefRj"))
             {
-                this.Text = "Fonte: Pref RJ";
-
                 if (listaUrl.Count == 0)
                     listaUrl = new BuscaLegalDao().ObterUrlsParaProcessamento("prefRj");
 
@@ -7160,7 +7032,7 @@ namespace Systax_BuscaLegal
                         //    foreach (ZipArchiveEntry entry in archive.Entries)
                         //    {
                         //        entry.ExtractToFile(nomeArq.Replace(".zip", ".pdf"));
-                        conteudoPdf = LeArquivo(nomeArq.Replace(".zip", ".pdf"));
+                        conteudoPdf = new Facilities().LeArquivo(nomeArq.Replace(".zip", ".pdf"));
                         //    }
                         //}
 
@@ -7170,9 +7042,7 @@ namespace Systax_BuscaLegal
                         //Tratamento para o atual conteudoPdf
                         //Criar ai sim Loop para 
 
-                        continue;
-
-                        hash = GerarHash(Regex.Replace(conteudoPdf, @"\s+", " "));
+                        hash = new Facilities().GerarHash(Regex.Replace(conteudoPdf, @"\s+", " "));
 
                         /** Outros **/
                         ementaInserir.DescSigla = string.Empty;
@@ -7184,7 +7054,7 @@ namespace Systax_BuscaLegal
 
                         titulo.ToList().ForEach(delegate(char x) { numero += char.IsNumber(x) && (numero.Equals(string.Empty) || !numero.Contains(".")) ? x.ToString() : numero.Equals(string.Empty) ? string.Empty : "."; });
 
-                        especie = titulo.Substring(0, obterPontoCorte(titulo)).Trim();
+                        especie = titulo.Substring(0, new Facilities().obterPontoCorte(titulo)).Trim();
 
                         if (numero.Equals(string.Empty))
                             numero = "0";
@@ -7225,14 +7095,13 @@ namespace Systax_BuscaLegal
 
             if (modoProcessamento.Equals("f") || modoProcessamento.Equals("u1"))
             {
-                this.Text = "Fonte: Sec.Mun.SP";
                 string linksPdf = string.Empty;
 
                 List<string> listaUrlSecSp = new List<string>() { "3160", "3159", "3161", "3162", "3163", "3164", "3165", "3166", "3167", "3168", "3169", "3171", "3172", "3795", "6651", "7093" };
 
                 foreach (var item in listaUrlSecSp)
                 {
-                    string htmlUrl = getHtmlPaginaByGet("http://www.prefeitura.sp.gov.br/cidade/secretarias/fazenda/legislacao/index.php?p=" + item, "default").Replace("\"", string.Empty);
+                    string htmlUrl = new Facilities().getHtmlPaginaByGet("http://www.prefeitura.sp.gov.br/cidade/secretarias/fazenda/legislacao/index.php?p=" + item, "default").Replace("\"", string.Empty);
 
                     if (htmlUrl.ToLower().Contains("<div id=texto"))
                     {
@@ -7261,7 +7130,7 @@ namespace Systax_BuscaLegal
 
                         listUrls.FindAll(x => !x.Substring(0, x.IndexOf(">")).Contains(".pdf") && x.Substring(0, x.IndexOf(">")).Contains("?p=")).ToList().ForEach(delegate(string itemX)
                         {
-                            htmlUrl = getHtmlPaginaByGet(itemX, "default").Replace("\"", string.Empty);
+                            htmlUrl = new Facilities().getHtmlPaginaByGet(itemX, "default").Replace("\"", string.Empty);
 
                             if (htmlUrl.ToLower().Contains("<div id=texto"))
                             {
@@ -7345,7 +7214,7 @@ namespace Systax_BuscaLegal
                                     webclient.DownloadFile(urlTratada, nomeArq);
                                 }
 
-                                dadosPdf = LeArquivo(nomeArq);
+                                dadosPdf = new Facilities().LeArquivo(nomeArq);
 
                                 var listDados = Regex.Split(dadosPdf, "\n").ToList();
 
@@ -7355,17 +7224,17 @@ namespace Systax_BuscaLegal
                                 publicacao = titulo.IndexOf("(") > 0 ? titulo.Substring(titulo.IndexOf("(") + 1) : listDados.Find(x => x.Contains("(DOC"));
 
                                 titulo.ToList().ForEach(delegate(char x) { numero += char.IsNumber(x) && (numero.Equals(string.Empty) || !numero.Contains(".")) ? x.ToString() : numero.Equals(string.Empty) ? string.Empty : "."; });
-                                especie = titulo.Substring(0, obterPontoCorte(titulo)).Trim();
+                                especie = titulo.Substring(0, new Facilities().obterPontoCorte(titulo)).Trim();
 
                                 File.Delete(nomeArq);
                             }
                             else
                             {
-                                dadosPdf = getHtmlPaginaByGet(urlTratada, "default").Replace("\r", " ").Replace("\t", " ").Replace("\n", " ").Replace("\"", string.Empty);
+                                dadosPdf = new Facilities().getHtmlPaginaByGet(urlTratada, "default").Replace("\r", " ").Replace("\t", " ").Replace("\n", " ").Replace("\"", string.Empty);
 
                                 string dadosCorpo = dadosPdf.Substring(dadosPdf.IndexOf("<div id=texto"));
-                                titulo = ObterStringLimpa(dadosCorpo.Substring(dadosCorpo.IndexOf("<h2")).Substring(0, dadosCorpo.Substring(dadosCorpo.IndexOf("<h2")).IndexOf("</h2>")));
-                                especie = titulo.Substring(0, obterPontoCorte(titulo)).Trim();
+                                titulo = new Facilities().ObterStringLimpa(dadosCorpo.Substring(dadosCorpo.IndexOf("<h2")).Substring(0, dadosCorpo.Substring(dadosCorpo.IndexOf("<h2")).IndexOf("</h2>")));
+                                especie = titulo.Substring(0, new Facilities().obterPontoCorte(titulo)).Trim();
                             }
 
                             /** Outros **/
@@ -7389,7 +7258,7 @@ namespace Systax_BuscaLegal
                             ementaInserir.NumeroAto = Regex.Replace(numero, "[^0-9]+", string.Empty);
                             ementaInserir.DataEdicao = edicao;
                             ementaInserir.Texto = dadosPdf;
-                            ementaInserir.Hash = GerarHash(removerCaracterEspecial(dadosPdf));
+                            ementaInserir.Hash = new Facilities().GerarHash(new Facilities().removerCaracterEspecial(dadosPdf));
                             ementaInserir.IdFila = itemLista_Nivel2.Id;
 
                             ementaInserir.Escopo = "SP";
@@ -7405,9 +7274,6 @@ namespace Systax_BuscaLegal
                         }
                         catch (Exception ex)
                         {
-                            if (!ex.Message.Equals("O servidor remoto retornou um erro: (404) Não Localizado."))
-                                ex = ex;
-
                             ex.Source = "Docs > secMunSp > lv1";
                             new BuscaLegalDao().InserirLogErro(ex, urlTratada, string.Empty);
                         }
@@ -7425,7 +7291,6 @@ namespace Systax_BuscaLegal
 
             if (modoProcessamento.Equals("f") || modoProcessamento.Equals("u1"))
             {
-                this.Text = "Fonte: Sefaz AC";
 
                 linksSefazAc = new List<string>() {/*"http://www.sefaz.ac.gov.br/wps/portal/sefaz/sefaz/principal/!ut/p/c5/7ZLLboJQEIafxRfgDByBwxLSgxxuilxENgSIJYCAiY1Qnr5oF00XtYsaV53ZTDLzzzfJ_ChBc3bZpSqzt6rvsiOKUSKlG4N5fmiIPAm3GNgmWr9YKxETD8_9vZTCD6HCL-odimGZ-vX7iU3NtK1htNxcZ24eDg5teCcoRlf2waXnMaDN5NSa5YTldJ5UgELhI92jqt294oO6-OMl_-rnq02UlMc-n122u_ruziz_2b9Dco2-PaA9SuSvLWuHEmAippGuefxcoeCBfvvOIrYszAQG2DFBEFby81hk-VDW_JUqb7mhaDngiIyxuBQUUCRFkgSCYg2d2vBi3cIWTWPgyTUHdfEBGlrzCA!!/dl3/d3/L2dBISEvZ0FBIS9nQSEh/?1dmy&current=true&urile=wcm%3apath%3a/SefazServ/Portal+SefazServ/Principal/Servicos/Legislacao/Legislacao+Estadual+repo/Leis+Ordinarias/"
                                                    ,"http://www.sefaz.ac.gov.br/wps/portal/sefaz/sefaz/principal/!ut/p/c5/7ZLPboJAEMafxRdgd1kWliO2q_xxwVUWkQtB0xBQxKSNxH36LunB9FCbtKanzlwmmfnmN8l8oAA6T9Wlqau3pj9VR5CDwi6XfiDW0ieIyhWGwTJLnqM5wVRg3d_aJfwiPPiNegNyaJXr9noO1EGtWiWG1OEwVnzg7IB4yq68rTBnJEmlpetpxGWtXpUH4d5F2UwwLxayKvvJLy_5V_9EHYKiPvY77ZPN6Jw7s-ijf4cU-333AragcG5bEs4oDAhm2WwqkK5A-kDHfGbRhWNqQgAxD6Fpzp2_Y1HroSz9lWbXGcO-M6BBHYyJZbrQtV3bNinIn8C5k5dojAUJ_QHRMQdvMnkHWY3K_w!!/dl3/d3/L2dBISEvZ0FBIS9nQSEh/?1dmy&current=true&urile=wcm%3apath%3a/SefazServ/Portal+SefazServ/Principal/Servicos/Legislacao/Legislacao+Estadual+repo/Leis+Complementares/"
@@ -7492,7 +7357,7 @@ namespace Systax_BuscaLegal
                                 webclient.DownloadFile(urlTratada, nomeArq);
                             }
 
-                            dadosPdf = LeArquivo(nomeArq);
+                            dadosPdf = new Facilities().LeArquivo(nomeArq);
 
                             var listDados = Regex.Split(dadosPdf, "\n").ToList();
 
@@ -7502,7 +7367,7 @@ namespace Systax_BuscaLegal
                             publicacao = listDados.Find(x => x.Contains("Publicad"));
 
                             titulo.ToList().ForEach(delegate(char x) { numero += char.IsNumber(x) && (numero.Equals(string.Empty) || !numero.Contains(".")) ? x.ToString() : numero.Equals(string.Empty) ? string.Empty : "."; });
-                            especie = titulo.Substring(0, obterPontoCorte(titulo)).Trim();
+                            especie = titulo.Substring(0, new Facilities().obterPontoCorte(titulo)).Trim();
 
                             File.Delete(nomeArq);
 
@@ -7527,7 +7392,7 @@ namespace Systax_BuscaLegal
                             ementaInserir.NumeroAto = Regex.Replace(numero, "[^0-9]+", string.Empty);
                             ementaInserir.DataEdicao = edicao;
                             ementaInserir.Texto = dadosPdf;
-                            ementaInserir.Hash = GerarHash(removerCaracterEspecial(dadosPdf));
+                            ementaInserir.Hash = new Facilities().GerarHash(new Facilities().removerCaracterEspecial(dadosPdf));
                             ementaInserir.IdFila = itemLista_Nivel2.Id;
 
                             ementaInserir.Escopo = "AC";
@@ -7560,8 +7425,6 @@ namespace Systax_BuscaLegal
 
             if (modoProcessamento.Equals("f") || modoProcessamento.Equals("u1"))
             {
-                this.Text = "Fonte: Sefaz Amazonas";
-
                 List<string> listLinksSefazAm = new List<string>(){
                                                      "http://online.sefaz.am.gov.br/silt/Normas/Legisla%C3%A7%C3%A3o%20Estadual/Constitui%C3%A7%C3%A3o%20Estadual/Ano%201989/Arquivo/CE%201989.htm|f"
                                                     ,"http://online.sefaz.am.gov.br/silt/Normas/Legisla%C3%A7%C3%A3o%20Estadual/Lei%20Complementar%20Estadual/Lei%20Complementar%20Estadual.htm"
@@ -7610,7 +7473,7 @@ namespace Systax_BuscaLegal
                         }
                         else
                         {
-                            string textHtml = getHtmlPaginaByGet(item, "default").Replace("\"", string.Empty).Replace("\t", " ").Replace("\r", " ");
+                            string textHtml = new Facilities().getHtmlPaginaByGet(item, "default").Replace("\"", string.Empty).Replace("\t", " ").Replace("\r", " ");
                             textHtml = textHtml.Substring(textHtml.IndexOf("<div align=center>")).Substring(0, textHtml.Substring(textHtml.IndexOf("<div align=center>")).IndexOf("</table>"));
 
                             var listLinks = Regex.Split(textHtml.ToLower(), "href=").ToList();
@@ -7627,7 +7490,7 @@ namespace Systax_BuscaLegal
 
                                 Thread.Sleep(2000);
 
-                                textHtml = getHtmlPaginaByGet(novaUrl, "default").Replace("\"", string.Empty).Replace("\t", " ").Replace("\r", " ");
+                                textHtml = new Facilities().getHtmlPaginaByGet(novaUrl, "default").Replace("\"", string.Empty).Replace("\t", " ").Replace("\r", " ");
                                 textHtml = textHtml.Substring(textHtml.IndexOf("<div align=center>")).Substring(0, textHtml.Substring(textHtml.IndexOf("<div align=center>")).IndexOf("</table>"));
 
                                 var listLinks1 = Regex.Split(textHtml.ToLower(), "href=").ToList();
@@ -7681,7 +7544,7 @@ namespace Systax_BuscaLegal
                             itemListaVez.Url = urlTratada;
                             itemListaVez.IdUrl = itemLista_Nivel2.IdUrl;
 
-                            string htmlPage = getHtmlPaginaByGet(urlTratada, "default").Replace("\"", string.Empty).Replace("\t", " ").Replace("\r", " ").Replace("\n", " ");
+                            string htmlPage = new Facilities().getHtmlPaginaByGet(urlTratada, "default").Replace("\"", string.Empty).Replace("\t", " ").Replace("\r", " ").Replace("\n", " ");
 
                             string numero = string.Empty;
                             string especie = string.Empty;
@@ -7694,32 +7557,30 @@ namespace Systax_BuscaLegal
                             htmlPage = Regex.Replace(htmlPage.Trim(), @"\s+", " ");
 
                             if (htmlPage.Contains("<title>"))
-                                titulo = ObterStringLimpa(htmlPage.Substring(htmlPage.IndexOf("<title>")).Substring(0, htmlPage.Substring(htmlPage.IndexOf("<title>")).IndexOf("</title>")));
+                                titulo = new Facilities().ObterStringLimpa(htmlPage.Substring(htmlPage.IndexOf("<title>")).Substring(0, htmlPage.Substring(htmlPage.IndexOf("<title>")).IndexOf("</title>")));
 
                             if (titulo.Contains("LC") || urlTratada.ToLower().Contains("lei%20complementar") || urlTratada.ToLower().Contains("lei%20complementar"))
-                                titulo = ObterStringLimpa(htmlPage.Substring(htmlPage.ToLower().IndexOf("lei complementar n")).Substring(0, htmlPage.Substring(htmlPage.ToLower().IndexOf("lei complementar n")).IndexOf("</p>")));
+                                titulo = new Facilities().ObterStringLimpa(htmlPage.Substring(htmlPage.ToLower().IndexOf("lei complementar n")).Substring(0, htmlPage.Substring(htmlPage.ToLower().IndexOf("lei complementar n")).IndexOf("</p>")));
 
                             else if (titulo.ToLower().Contains("resolução") || urlTratada.ToLower().Contains("resolução%20codam") || urlTratada.ToLower().Contains("resolução%20gsefaz") || urlTratada.ToLower().Contains("resolu%c3%a7%c3%a3o%20gsefaz"))
                             {
                                 if (htmlPage.ToLower().IndexOf("resolução n") > 0)
-                                    titulo = ObterStringLimpa(htmlPage.Substring(htmlPage.ToLower().IndexOf("resolução n")).Substring(0, htmlPage.Substring(htmlPage.ToLower().IndexOf("resolução n")).IndexOf("</p>")));
+                                    titulo = new Facilities().ObterStringLimpa(htmlPage.Substring(htmlPage.ToLower().IndexOf("resolução n")).Substring(0, htmlPage.Substring(htmlPage.ToLower().IndexOf("resolução n")).IndexOf("</p>")));
                                 else if (htmlPage.ToLower().IndexOf("resolução <span") > 0)
-                                    titulo = ObterStringLimpa(htmlPage.Substring(htmlPage.ToLower().IndexOf("resolução <span")).Substring(0, htmlPage.Substring(htmlPage.ToLower().IndexOf("resolução <span")).IndexOf("</p>")));
+                                    titulo = new Facilities().ObterStringLimpa(htmlPage.Substring(htmlPage.ToLower().IndexOf("resolução <span")).Substring(0, htmlPage.Substring(htmlPage.ToLower().IndexOf("resolução <span")).IndexOf("</p>")));
                                 else if (htmlPage.ToLower().IndexOf("resolução <o:p>") > 0)
-                                    titulo = ObterStringLimpa(htmlPage.Substring(htmlPage.ToLower().IndexOf("resolução <o:p>")).Substring(0, htmlPage.Substring(htmlPage.ToLower().IndexOf("resolução <o:p>")).IndexOf("</p>")));
+                                    titulo = new Facilities().ObterStringLimpa(htmlPage.Substring(htmlPage.ToLower().IndexOf("resolução <o:p>")).Substring(0, htmlPage.Substring(htmlPage.ToLower().IndexOf("resolução <o:p>")).IndexOf("</p>")));
                             }
 
                             else if (titulo.ToLower().Contains("decreto") || urlTratada.ToLower().Contains("decreto%20estadual"))
-                                titulo = htmlPage.ToLower().IndexOf("decreto n") > 0 ? ObterStringLimpa(htmlPage.Substring(htmlPage.ToLower().IndexOf("decreto n")).Substring(0, htmlPage.Substring(htmlPage.ToLower().IndexOf("decreto n")).IndexOf("</p>"))) : titulo;
+                                titulo = htmlPage.ToLower().IndexOf("decreto n") > 0 ? new Facilities().ObterStringLimpa(htmlPage.Substring(htmlPage.ToLower().IndexOf("decreto n")).Substring(0, htmlPage.Substring(htmlPage.ToLower().IndexOf("decreto n")).IndexOf("</p>"))) : titulo;
 
                             else if (titulo.ToLower().Contains("portaria") || urlTratada.ToLower().Contains("portaria%20ser"))
-                                titulo = htmlPage.ToLower().IndexOf("portaria<o:p>") > 0 ? ObterStringLimpa(htmlPage.Substring(htmlPage.ToLower().IndexOf("portaria<o:p>")).Substring(0, htmlPage.Substring(htmlPage.ToLower().IndexOf("portaria<o:p>")).IndexOf("</p>"))) : titulo;
+                                titulo = htmlPage.ToLower().IndexOf("portaria<o:p>") > 0 ? new Facilities().ObterStringLimpa(htmlPage.Substring(htmlPage.ToLower().IndexOf("portaria<o:p>")).Substring(0, htmlPage.Substring(htmlPage.ToLower().IndexOf("portaria<o:p>")).IndexOf("</p>"))) : titulo;
 
                             else if (titulo.ToLower().Contains("lei") || urlTratada.ToLower().Contains("lei%20estadual"))
-                                titulo = htmlPage.ToLower().IndexOf("lei n") > 0 ? ObterStringLimpa(htmlPage.Substring(htmlPage.ToLower().IndexOf("lei n")).Substring(0, htmlPage.Substring(htmlPage.ToLower().IndexOf("lei n")).IndexOf("</p>"))) : titulo;
+                                titulo = htmlPage.ToLower().IndexOf("lei n") > 0 ? new Facilities().ObterStringLimpa(htmlPage.Substring(htmlPage.ToLower().IndexOf("lei n")).Substring(0, htmlPage.Substring(htmlPage.ToLower().IndexOf("lei n")).IndexOf("</p>"))) : titulo;
 
-                            else
-                                titulo = titulo;
 
                             List<int> listPublicacao = new List<int>() { titulo.ToLower().IndexOf(","), titulo.ToLower().IndexOf(" de ") };
 
@@ -7729,7 +7590,7 @@ namespace Systax_BuscaLegal
                                 publicacao = titulo.Substring(listPublicacao.Min(x => x) + 4);
 
                             else if (htmlPage.ToLower().Contains("publicad"))
-                                publicacao = ObterStringLimpa(htmlPage.Substring(htmlPage.ToLower().IndexOf("publicad")).Substring(0, htmlPage.Substring(htmlPage.ToLower().IndexOf("publicad")).IndexOf("</p>")));
+                                publicacao = new Facilities().ObterStringLimpa(htmlPage.Substring(htmlPage.ToLower().IndexOf("publicad")).Substring(0, htmlPage.Substring(htmlPage.ToLower().IndexOf("publicad")).IndexOf("</p>")));
 
                             titulo.ToList().ForEach(delegate(char x) { numero += char.IsNumber(x) && (numero.Equals(string.Empty) || !numero.Contains(".")) ? x.ToString() : numero.Equals(string.Empty) ? string.Empty : "."; });
                             texto = htmlPage.Substring(htmlPage.ToLower().IndexOf("<body")).Substring(0, htmlPage.Substring(htmlPage.ToLower().IndexOf("<body")).IndexOf("</body>"));
@@ -7789,7 +7650,7 @@ namespace Systax_BuscaLegal
                             ementaInserir.NumeroAto = Regex.Replace(numero, "[^0-9]+", string.Empty);
                             ementaInserir.DataEdicao = edicao;
                             ementaInserir.Texto = texto;
-                            ementaInserir.Hash = GerarHash(removerCaracterEspecial(ObterStringLimpa(removeTagScript(texto))));
+                            ementaInserir.Hash = new Facilities().GerarHash(new Facilities().removerCaracterEspecial(new Facilities().ObterStringLimpa(new Facilities().removeTagScript(texto))));
                             ementaInserir.IdFila = itemLista_Nivel2.Id;
 
                             ementaInserir.Escopo = "AM";
@@ -7820,8 +7681,6 @@ namespace Systax_BuscaLegal
 
             if (modoProcessamento.Equals("f") || modoProcessamento.Equals("u1"))
             {
-                this.Text = "Fonte: Sefaz Amazonas";
-
                 List<string> listLinks = new List<string>() { "https://www.sefaz.ap.gov.br/index.php/regulamentos/7894-ricms-decreto-n-2269-de-24-de-julho-de-1998"
                                                              ,"https://www.sefaz.ap.gov.br/index.php/regulamentos/7895-ipva-decreto-n-3340-de-14-de-dezembro-de-1995"
                                                              ,"https://www.sefaz.ap.gov.br/index.php/regulamentos/7896-itcd-decreto-n-3601-de-29-de-dezembro-de-2000"
@@ -7858,7 +7717,7 @@ namespace Systax_BuscaLegal
                         {
                             Thread.Sleep(2000);
 
-                            string htmlCode = getHtmlPaginaByGet(itemLista, string.Empty).Replace("\"", string.Empty).Replace("\n", " ").Replace("\r", " ").Replace("\t", " ");
+                            string htmlCode = new Facilities().getHtmlPaginaByGet(itemLista, string.Empty).Replace("\"", string.Empty).Replace("\n", " ").Replace("\r", " ").Replace("\t", " ");
 
                             List<string> listQuebra = new List<string>() { htmlCode.ToLower().IndexOf("<div id=ariext123_container").ToString() +  "|<div id=ariext123_container"
                                                                           ,htmlCode.ToLower().IndexOf("<div id=ariext124_container").ToString() +  "|<div id=ariext124_container"
@@ -7887,7 +7746,7 @@ namespace Systax_BuscaLegal
 
                                         htmlCode = itemLista.Substring(0, itemLista.LastIndexOf("/index.php")) + itemUrl.Substring(0, itemUrl.IndexOf(" "));
 
-                                        htmlCode = getHtmlPaginaByGet(htmlCode, string.Empty).Replace("\"", string.Empty).Replace("\n", " ").Replace("\r", " ").Replace("\t", " ");
+                                        htmlCode = new Facilities().getHtmlPaginaByGet(htmlCode, string.Empty).Replace("\"", string.Empty).Replace("\n", " ").Replace("\r", " ").Replace("\t", " ");
 
                                         htmlCode = htmlCode.Substring(htmlCode.IndexOf("<div class=category-list")).Substring(0, htmlCode.Substring(htmlCode.IndexOf("<div class=category-list")).IndexOf("</table>"));
 
@@ -7903,12 +7762,12 @@ namespace Systax_BuscaLegal
 
                                             foreach (var item in listfinal)
                                             {
-                                                if (!ObterStringLimpa("<" + item).ToLower().Contains("nº"))
+                                                if (!new Facilities().ObterStringLimpa("<" + item).ToLower().Contains("nº"))
                                                 {
                                                     Thread.Sleep(2000);
 
                                                     htmlCode = itemLista.Substring(0, itemLista.LastIndexOf("/index.php")) + item.Substring(0, item.IndexOf(">"));
-                                                    htmlCode = getHtmlPaginaByGet(htmlCode, string.Empty).Replace("\"", string.Empty).Replace("\n", " ").Replace("\r", " ").Replace("\t", " ");
+                                                    htmlCode = new Facilities().getHtmlPaginaByGet(htmlCode, string.Empty).Replace("\"", string.Empty).Replace("\n", " ").Replace("\r", " ").Replace("\t", " ");
 
                                                     htmlCode = htmlCode.Substring(htmlCode.ToLower().IndexOf("<dl class=article-info")).Substring(0, htmlCode.Substring(htmlCode.ToLower().IndexOf("<dl class=article-info")).IndexOf("</table>"));
 
@@ -8023,7 +7882,7 @@ namespace Systax_BuscaLegal
                                     webClient.DownloadFile(urlTratada, nomeArq);
                                 }
 
-                                dadosPdf = LeArquivo(nomeArq);
+                                dadosPdf = new Facilities().LeArquivo(nomeArq);
 
                                 especie = "Sefaz Amapá";
                                 titulo = "Sefaz Amapá";
@@ -8032,7 +7891,7 @@ namespace Systax_BuscaLegal
                             }
                             else
                             {
-                                htmlPage = getHtmlPaginaByGet(urlTratada, string.Empty).Replace("\"", string.Empty).Replace("\t", " ").Replace("\r", " ").Replace("\n", " ");
+                                htmlPage = new Facilities().getHtmlPaginaByGet(urlTratada, string.Empty).Replace("\"", string.Empty).Replace("\t", " ").Replace("\r", " ").Replace("\n", " ");
                                 htmlPage = Regex.Replace(htmlPage.Trim(), @"\s+", " ");
 
                                 corpoDados = htmlPage.Substring(htmlPage.IndexOf("<dl class=article-info")).Substring(0, htmlPage.Substring(htmlPage.IndexOf("<dl class=article-info")).IndexOf("<div class=userbottom"));
@@ -8046,19 +7905,19 @@ namespace Systax_BuscaLegal
                                 indexEmenta.RemoveAll(x => x.Contains("-1"));
 
                                 titulo = htmlPage.Substring(htmlPage.ToLower().IndexOf("<title>")).Substring(0, htmlPage.Substring(htmlPage.ToLower().IndexOf("<title>")).IndexOf("</title>"));
-                                titulo = ObterStringLimpa(titulo).Substring(0, ObterStringLimpa(titulo).IndexOf("-"));
+                                titulo = new Facilities().ObterStringLimpa(titulo).Substring(0, new Facilities().ObterStringLimpa(titulo).IndexOf("-"));
 
                                 if (string.IsNullOrEmpty(titulo))
                                     titulo = corpoDados.Substring(corpoDados.IndexOf("<strong>")).Substring(0, corpoDados.Substring(corpoDados.IndexOf("<strong>")).IndexOf("</strong>"));
 
-                                titulo = ObterStringLimpa(titulo);
+                                titulo = new Facilities().ObterStringLimpa(titulo);
 
                                 //titulo = corpoDados.Substring(corpoDados.IndexOf("<strong>")).Substring(0, corpoDados.Substring(corpoDados.IndexOf("<strong>")).IndexOf("</strong>"));
                                 if (indexEmenta.Count > 0)
                                     ementa = corpoDados.Substring(int.Parse(indexEmenta[0].Split('|')[0])).Substring(0, corpoDados.Substring(int.Parse(indexEmenta[0].Split('|')[0])).IndexOf(indexEmenta[0].Split('|')[1]));
 
-                                titulo = ObterStringLimpa(titulo);
-                                ementa = ObterStringLimpa(ementa);
+                                titulo = new Facilities().ObterStringLimpa(titulo);
+                                ementa = new Facilities().ObterStringLimpa(ementa);
 
                                 if (corpoDados.Contains(".doc") || corpoDados.Contains(".pdf"))
                                 {
@@ -8080,7 +7939,7 @@ namespace Systax_BuscaLegal
 
                                     if (linkArq.Contains(".pdf"))
                                     {
-                                        dadosPdf = LeArquivo(nomeArq);
+                                        dadosPdf = new Facilities().LeArquivo(nomeArq);
                                     }
                                     else
                                     {
@@ -8156,7 +8015,7 @@ namespace Systax_BuscaLegal
                             ementaInserir.NumeroAto = Regex.Replace(numero, "[^0-9]+", string.Empty);
                             ementaInserir.DataEdicao = edicao;
                             ementaInserir.Texto = texto;
-                            ementaInserir.Hash = GerarHash(removerCaracterEspecial(ObterStringLimpa(removeTagScript(texto))));
+                            ementaInserir.Hash = new Facilities().GerarHash(new Facilities().removerCaracterEspecial(new Facilities().ObterStringLimpa(new Facilities().removeTagScript(texto))));
                             ementaInserir.IdFila = itemLista_Nivel2.Id;
 
                             ementaInserir.Escopo = "AP";
@@ -8187,7 +8046,6 @@ namespace Systax_BuscaLegal
 
             if (modoProcessamento.Equals("f") || modoProcessamento.Equals("u1"))
             {
-                this.Text = "Fonte: Sefaz Goias";
 
                 List<string> listLinksSefazAm = new List<string>() { 
                   /*"ftp://ftp.sefaz.go.gov.br/sefazgo/legislacao/Rcte/RCTE.htm"  
@@ -8217,7 +8075,7 @@ namespace Systax_BuscaLegal
 
                         objUrll.Lista_Nivel2 = new List<dynamic>();
 
-                        string textHtml = getHtmlPaginaByGet(item, "default").Replace("\"", string.Empty).Replace("\t", " ").Replace("\r", " ");
+                        string textHtml = new Facilities().getHtmlPaginaByGet(item, "default").Replace("\"", string.Empty).Replace("\t", " ").Replace("\r", " ");
 
                         var listLinks = Regex.Split(textHtml.ToLower(), "href=").ToList();
                         listLinks.RemoveAt(0);
@@ -8298,7 +8156,7 @@ namespace Systax_BuscaLegal
                             //string htmlPage = string.Empty;
                             string corpoDados = string.Empty;
 
-                            htmlPage = getHtmlPaginaByGet(urlTratada, "default").Replace("\"", string.Empty).Replace("\t", " ").Replace("\r", " ").Replace("\n", " ").Replace("'", string.Empty);
+                            htmlPage = new Facilities().getHtmlPaginaByGet(urlTratada, "default").Replace("\"", string.Empty).Replace("\t", " ").Replace("\r", " ").Replace("\n", " ").Replace("'", string.Empty);
                             htmlPage = Regex.Replace(htmlPage.Trim(), @"\s+", " ");
 
                             List<string> listMarcacao = new List<string>() {
@@ -8348,13 +8206,13 @@ namespace Systax_BuscaLegal
                             if (string.IsNullOrEmpty(titulo))
                                 titulo = corpoDados.Substring(corpoDados.ToLower().IndexOf(listMarcacao[0].Split('|')[2])).Substring(0, corpoDados.Substring(corpoDados.ToLower().IndexOf(listMarcacao[0].Split('|')[2])).ToLower().IndexOf(listMarcacao[0].Split('|')[3]));
 
-                            titulo = ObterStringLimpa(titulo);
+                            titulo = new Facilities().ObterStringLimpa(titulo);
 
                             if (listMarcacao.Count > 0 && !listMarcacao[0].Split('|')[4].Equals("nd") && corpoDados.ToLower().IndexOf(listMarcacao[0].Split('|')[4]) >= 0)
                                 ementa = corpoDados.Substring(corpoDados.ToLower().IndexOf(listMarcacao[0].Split('|')[4])).Substring(0, corpoDados.Substring(corpoDados.ToLower().IndexOf(listMarcacao[0].Split('|')[4])).IndexOf(listMarcacao[0].Split('|')[5]));
 
-                            titulo = ObterStringLimpa(titulo);
-                            ementa = ObterStringLimpa(ementa);
+                            titulo = new Facilities().ObterStringLimpa(titulo);
+                            ementa = new Facilities().ObterStringLimpa(ementa);
 
                             if (corpoDados.ToLower().IndexOf(listMarcacao[0].Split('|')[6]) >= 0 && !listMarcacao[0].Split('|')[6].Equals("nd"))
                                 publicacao = corpoDados.Substring(corpoDados.ToLower().IndexOf(listMarcacao[0].Split('|')[6])).Substring(0, corpoDados.Substring(corpoDados.ToLower().IndexOf(listMarcacao[0].Split('|')[6])).IndexOf(listMarcacao[0].Split('|')[7]));
@@ -8369,7 +8227,7 @@ namespace Systax_BuscaLegal
                                     publicacao = titulo.Substring(listPublicacao.Min(x => x) + 4);
                             }
 
-                            publicacao = ObterStringLimpa(publicacao);
+                            publicacao = new Facilities().ObterStringLimpa(publicacao);
 
                             titulo.Replace(".", string.Empty).ToList().ForEach(delegate(char x) { numero += char.IsNumber(x) && (numero.Equals(string.Empty) || !numero.Contains(".")) ? x.ToString() : numero.Equals(string.Empty) ? string.Empty : "."; });
 
@@ -8428,7 +8286,7 @@ namespace Systax_BuscaLegal
                             ementaInserir.NumeroAto = Regex.Replace(numero, "[^0-9]+", string.Empty);
                             ementaInserir.DataEdicao = edicao;
                             ementaInserir.Texto = texto;
-                            ementaInserir.Hash = GerarHash(removerCaracterEspecial(ObterStringLimpa(removeTagScript(texto))));
+                            ementaInserir.Hash = new Facilities().GerarHash(new Facilities().removerCaracterEspecial(new Facilities().ObterStringLimpa(new Facilities().removeTagScript(texto))));
                             ementaInserir.IdFila = itemLista_Nivel2.Id;
 
                             ementaInserir.Escopo = "GO";
@@ -8461,12 +8319,10 @@ namespace Systax_BuscaLegal
 
             if (modoProcessamento.Equals("f") || modoProcessamento.Equals("u1"))
             {
-                this.Text = "Fonte: Sefaz CE";
-
-                webBrowser1 = new WebBrowser();
-                webBrowser1.ScriptErrorsSuppressed = true;
-                webBrowser1.Navigate("http://www2.sefaz.ce.gov.br/alfrescoPublic/br.com.alfresco.FormMain/FormMain.html");
-                webBrowser1.DocumentCompleted += new WebBrowserDocumentCompletedEventHandler(webBrowser1_DocumentCompleted_SefazCe);
+                webBrowserGERAL = new WebBrowser();
+                webBrowserGERAL.ScriptErrorsSuppressed = true;
+                webBrowserGERAL.Navigate("http://www2.sefaz.ce.gov.br/alfrescoPublic/br.com.alfresco.FormMain/FormMain.html");
+                webBrowserGERAL.DocumentCompleted += new WebBrowserDocumentCompletedEventHandler(webBrowser1_DocumentCompleted_SefazCe);
             }
 
             #endregion
@@ -8522,7 +8378,7 @@ namespace Systax_BuscaLegal
                             //string htmlPage = string.Empty;
                             string corpoDados = string.Empty;
 
-                            htmlPage = System.Net.WebUtility.HtmlDecode(getHtmlPaginaByGet(urlTratada, "default", string.Empty, "accept").Replace("\"", string.Empty).Replace("\t", " ").Replace("\r", " ").Replace("\n", " ").Replace("'", string.Empty));
+                            htmlPage = System.Net.WebUtility.HtmlDecode(new Facilities().getHtmlPaginaByGet(urlTratada, "default", string.Empty, "accept").Replace("\"", string.Empty).Replace("\t", " ").Replace("\r", " ").Replace("\n", " ").Replace("'", string.Empty));
                             htmlPage = Regex.Replace(htmlPage.Trim(), @"\s+", " ");
 
                             List<string> listMarcacao = new List<string>() { htmlPage.ToLower().IndexOf("<table border=0 cellspacing=0 cellpadding=0 width=100%").ToString() + "|</body>|<font face=arial size=3|</font>|<font face=times new roman size=2>|</font>|<font face=times new roman size=2 color=#008080|</font>" };
@@ -8565,13 +8421,13 @@ namespace Systax_BuscaLegal
                                     if (string.IsNullOrEmpty(titulo))
                                         titulo = itemDecretos.Substring(1).Substring(0, itemDecretos.Substring(1).ToLower().IndexOf(listMarcacao[0].Split('|')[3]));
 
-                                    titulo = ObterStringLimpa(titulo);
+                                    titulo = new Facilities().ObterStringLimpa(titulo);
 
                                     if (listMarcacao.Count > 0 && !listMarcacao[0].Split('|')[4].Equals("nd") && itemDecretos.ToLower().IndexOf(listMarcacao[0].Split('|')[4]) >= 0)
                                         ementa = itemDecretos.Substring(itemDecretos.ToLower().IndexOf(listMarcacao[0].Split('|')[4])).Substring(0, itemDecretos.Substring(itemDecretos.ToLower().IndexOf(listMarcacao[0].Split('|')[4])).ToLower().IndexOf(listMarcacao[0].Split('|')[5]));
 
-                                    titulo = ObterStringLimpa(titulo);
-                                    ementa = ObterStringLimpa(ementa);
+                                    titulo = new Facilities().ObterStringLimpa(titulo);
+                                    ementa = new Facilities().ObterStringLimpa(ementa);
 
                                     if (itemDecretos.ToLower().IndexOf(listMarcacao[0].Split('|')[6]) >= 0 && !listMarcacao[0].Split('|')[6].Equals("nd"))
                                         publicacao = itemDecretos.Substring(itemDecretos.ToLower().IndexOf(listMarcacao[0].Split('|')[6])).Substring(0, itemDecretos.Substring(itemDecretos.ToLower().IndexOf(listMarcacao[0].Split('|')[6])).ToLower().IndexOf(listMarcacao[0].Split('|')[7]));
@@ -8586,7 +8442,7 @@ namespace Systax_BuscaLegal
                                             publicacao = titulo.Substring(listPublicacao.Min(x => x) + 4);
                                     }
 
-                                    publicacao = ObterStringLimpa(publicacao);
+                                    publicacao = new Facilities().ObterStringLimpa(publicacao);
 
                                     titulo.Replace(".", string.Empty).ToList().ForEach(delegate(char x) { numero += char.IsNumber(x) && (numero.Equals(string.Empty) || !numero.Contains(".")) ? x.ToString() : numero.Equals(string.Empty) ? string.Empty : "."; });
 
@@ -8647,7 +8503,7 @@ namespace Systax_BuscaLegal
                                     ementaInserir.NumeroAto = Regex.Replace(numero, "[^0-9]+", string.Empty);
                                     ementaInserir.DataEdicao = edicao;
                                     ementaInserir.Texto = texto;
-                                    ementaInserir.Hash = GerarHash(removerCaracterEspecial(ObterStringLimpa(removeTagScript(texto))));
+                                    ementaInserir.Hash = new Facilities().GerarHash(new Facilities().removerCaracterEspecial(new Facilities().ObterStringLimpa(new Facilities().removeTagScript(texto))));
                                     ementaInserir.IdFila = itemLista_Nivel2.Id;
 
                                     ementaInserir.Escopo = "CE";
@@ -8689,8 +8545,6 @@ namespace Systax_BuscaLegal
             {
                 try
                 {
-                    this.Text = "Fonte: Sefaz MA";
-
                     string htmlPage = string.Empty;
 
                     List<string> linksSefazMA = new List<string>() { "http://sistemas1.sefaz.ma.gov.br/portalsefaz/jsp/pagina/pagina.jsf?codigo=97"
@@ -8747,7 +8601,7 @@ namespace Systax_BuscaLegal
                                     {
                                         try
                                         {
-                                            string htmlUrls = getHtmlPaginaByGet(nextUrl, "default").Replace("\"", string.Empty).Replace("\t", " ").Replace("\r", " ").Replace("\n", " ").Replace("'", string.Empty);
+                                            string htmlUrls = new Facilities().getHtmlPaginaByGet(nextUrl, "default").Replace("\"", string.Empty).Replace("\t", " ").Replace("\r", " ").Replace("\n", " ").Replace("'", string.Empty);
 
                                             List<string> listaCorte = new List<string>() { htmlUrls.ToLower().IndexOf("<p><p><strong>anexos</strong>").ToString() + "|<input type=hidden" 
                                                                               ,htmlUrls.ToLower().IndexOf("<div class=titulo_noticia>").ToString() + "|<input type=hidden"};
@@ -8866,7 +8720,7 @@ namespace Systax_BuscaLegal
                                 webclient.DownloadFile(urlTratada, nomeArq);
                             }
 
-                            string dadosPdf = LeArquivo(nomeArq);
+                            string dadosPdf = new Facilities().LeArquivo(nomeArq);
 
                             File.Delete(nomeArq);
 
@@ -8967,7 +8821,7 @@ namespace Systax_BuscaLegal
                             ementaInserir.NumeroAto = Regex.Replace(numero, "[^0-9]+", string.Empty);
                             ementaInserir.DataEdicao = edicao;
                             ementaInserir.Texto = texto;
-                            ementaInserir.Hash = GerarHash(removerCaracterEspecial(ObterStringLimpa(removeTagScript(texto))));
+                            ementaInserir.Hash = new Facilities().GerarHash(new Facilities().removerCaracterEspecial(new Facilities().ObterStringLimpa(new Facilities().removeTagScript(texto))));
                             ementaInserir.IdFila = itemLista_Nivel2.Id;
 
                             ementaInserir.Escopo = "MA";
@@ -9004,9 +8858,6 @@ namespace Systax_BuscaLegal
 
             if (modoProcessamento.Equals("f") || modoProcessamento.Equals("u1"))
             {
-
-                this.Text = "Fonte: Sefaz MA";
-
                 string htmlPage = string.Empty;
 
                 List<string> linksSefazMt = new List<string>() { "http://www.sefaz.mt.gov.br/spl/portalpaginalegislacao?parametroCodigoDestaque=2#"
@@ -9025,7 +8876,7 @@ namespace Systax_BuscaLegal
 
                         objUrll.Lista_Nivel2 = new List<dynamic>();
 
-                        string htmlListUrl = getHtmlPaginaByGet(itemMt, "default").Replace("\"", string.Empty).Replace("\n", " ").Replace("\t", " ").Replace("\r", " ");
+                        string htmlListUrl = new Facilities().getHtmlPaginaByGet(itemMt, "default").Replace("\"", string.Empty).Replace("\n", " ").Replace("\t", " ").Replace("\r", " ");
 
                         htmlListUrl = htmlListUrl.Substring(htmlListUrl.IndexOf("<table cellpadding=0 cellspacing=0 border=0 align=center")).Substring(0, htmlListUrl.Substring(htmlListUrl.IndexOf("<table cellpadding=0 cellspacing=0 border=0 align=center")).IndexOf("</table>"));
 
@@ -9206,8 +9057,6 @@ namespace Systax_BuscaLegal
                 string urlTratada = string.Empty;
                 string htmlPage = string.Empty;
 
-                int inferno = 0;
-
                 var listaXxx = new List<string>();
 
                 foreach (var nivel1_item in listaUrl)
@@ -9237,7 +9086,7 @@ namespace Systax_BuscaLegal
                             string texto = string.Empty;
                             string corpoDados = string.Empty;
 
-                            string htmlText = getHtmlPaginaByGet(urlTratada, "default").Replace("\"", string.Empty).Replace("\n", " ").Replace("\t", " ").Replace("\r", " ");
+                            string htmlText = new Facilities().getHtmlPaginaByGet(urlTratada, "default").Replace("\"", string.Empty).Replace("\n", " ").Replace("\t", " ").Replace("\r", " ");
 
                             List<string> listInformacoes = new List<string>() { htmlText.IndexOf("<FONT SIZE=4 FACE=Arial>") < 0 ? "-1" : htmlText.IndexOf("<FONT SIZE=2 COLOR=336699 FACE=Verdana").ToString() + "|<FONT SIZE=4 FACE=Arial>|</FONT>|<FONT SIZE=2 COLOR=336699 FACE=Verdana>Ementa:|</FONT></B>|<FONT SIZE=2 FACE=Verdana>#6|</FONT>"
                                                                                ,htmlText.IndexOf("<FONT SIZE=4>") < 0 ? "-1" : htmlText.IndexOf("<FONT SIZE=2 COLOR=336699 FACE=Verdana").ToString() + "|<FONT SIZE=4>|</FONT>|<FONT SIZE=2 COLOR=336699 FACE=Verdana>Ementa:|</FONT></B>|<FONT SIZE=2 FACE=Verdana>#6|</FONT>"};
@@ -9264,7 +9113,7 @@ namespace Systax_BuscaLegal
 
                             //while (true)
                             //{
-                            //    if (ObterStringLimpa(titulo).Trim().Length < 15)
+                            //    if (new Facilities().ObterStringLimpa(titulo).Trim().Length < 15)
                             //    {
                             //        titulo = auxTitle.Substring(auxTitle.IndexOf(listInformacoes[0].Split('|')[1])).Substring(0, auxTitle.Substring(auxTitle.IndexOf(listInformacoes[0].Split('|')[1])).IndexOf(listInformacoes[0].Split('|')[2]));
                             //    }
@@ -9274,7 +9123,7 @@ namespace Systax_BuscaLegal
                             //    auxTitle = auxTitle.Substring(auxTitle.IndexOf(listInformacoes[0].Split('|')[1]) + listInformacoes[0].Split('|')[1].Length);
                             //}
 
-                            if (ObterStringLimpa(titulo).Trim().Length < 15)
+                            if (new Facilities().ObterStringLimpa(titulo).Trim().Length < 15)
                             {
                                 try
                                 {
@@ -9286,7 +9135,7 @@ namespace Systax_BuscaLegal
                                 }
                             }
 
-                            titulo = ObterStringLimpa(titulo);
+                            titulo = new Facilities().ObterStringLimpa(titulo);
 
                             if (!listInformacoes[0].Split('|')[5].Equals("nd"))
                             {
@@ -9307,13 +9156,13 @@ namespace Systax_BuscaLegal
                             {
                                 ementa = htmlText.Substring(htmlText.ToLower().IndexOf("<font size=4 face=arial")).Substring(0, htmlText.Substring(htmlText.ToLower().IndexOf("<font size=4 face=arial")).ToLower().IndexOf("</font>"));
 
-                                if (titulo.Equals(ObterStringLimpa(ementa)))
+                                if (titulo.Equals(new Facilities().ObterStringLimpa(ementa)))
                                     ementa = string.Empty;
                             }
 
-                            publicacao = ObterStringLimpa(publicacao);
+                            publicacao = new Facilities().ObterStringLimpa(publicacao);
                             especie = titulo.Substring(0, titulo.IndexOf(" "));
-                            ementa = ObterStringLimpa(ementa);
+                            ementa = new Facilities().ObterStringLimpa(ementa);
 
                             titulo.Replace(".", string.Empty).ToList().ForEach(delegate(char x) { numero += char.IsNumber(x) && (numero.Equals(string.Empty) || !numero.Contains(".")) ? x.ToString() : numero.Equals(string.Empty) ? string.Empty : "."; });
 
@@ -9370,7 +9219,7 @@ namespace Systax_BuscaLegal
                             ementaInserir.NumeroAto = Regex.Replace(numero, "[^0-9]+", string.Empty);
                             ementaInserir.DataEdicao = edicao;
                             ementaInserir.Texto = descStyle + novaCss + texto;
-                            ementaInserir.Hash = GerarHash(removerCaracterEspecial(ObterStringLimpa(removeTagScript(texto))));
+                            ementaInserir.Hash = new Facilities().GerarHash(new Facilities().removerCaracterEspecial(new Facilities().ObterStringLimpa(new Facilities().removeTagScript(texto))));
                             ementaInserir.IdFila = itemLista_Nivel2.Id;
 
                             ementaInserir.Escopo = "MT";
@@ -9384,10 +9233,8 @@ namespace Systax_BuscaLegal
 
                             new BuscaLegalDao().AtualizarFontes(new List<dynamic>() { itemFonte });
                         }
-                        catch (Exception ex)
+                        catch (Exception)
                         {
-                            if (!htmlPage.Contains("Erro ao processar página, detalhes:"))
-                                MessageBox.Show("Erro - index:" + inferno.ToString());
                         }
                     }
 
@@ -9407,9 +9254,6 @@ namespace Systax_BuscaLegal
 
             if (modoProcessamento.Equals("f") || modoProcessamento.Equals("u1"))
             {
-
-                this.Text = "Fonte: Sefaz MS";
-
                 string htmlPage = string.Empty;
 
                 List<string> linksSefazMS = new List<string>() {"http://aacpdappls.net.ms.gov.br/appls/legislacao/serc/legato.nsf/Decreto?OpenView&Start=1&Count=30&Collapse=2#2"
@@ -9430,7 +9274,7 @@ namespace Systax_BuscaLegal
 
                         objUrll.Lista_Nivel2 = new List<dynamic>();
 
-                        string htmlListUrl = getHtmlPaginaByGet(itemMs, "default").Replace("\"", string.Empty).Replace("\n", " ").Replace("\t", " ").Replace("\r", " ");
+                        string htmlListUrl = new Facilities().getHtmlPaginaByGet(itemMs, "default").Replace("\"", string.Empty).Replace("\n", " ").Replace("\t", " ").Replace("\r", " ");
 
                         htmlListUrl = htmlListUrl.Substring(htmlListUrl.IndexOf("<table border=0 cellpadding=2 cellspacing=0>")).Substring(0, htmlListUrl.Substring(htmlListUrl.IndexOf("<table border=0 cellpadding=2 cellspacing=0>")).IndexOf("<img src=/appls/legislacao/serc/legato.nsf/vwicn103.gif?OpenImageResource"));
 
@@ -9446,7 +9290,7 @@ namespace Systax_BuscaLegal
                             {
                                 novaUrlDocs = (itemMs.Substring(0, itemMs.IndexOf(".br/") + 3) + itemUrlInt.Substring(0, itemUrlInt.IndexOf(" "))).Replace("amp;", string.Empty);
 
-                                htmlListUrl = getHtmlPaginaByGet(novaUrlDocs, "default").Replace("\"", string.Empty).Replace("\n", " ").Replace("\t", " ").Replace("\r", " ");
+                                htmlListUrl = new Facilities().getHtmlPaginaByGet(novaUrlDocs, "default").Replace("\"", string.Empty).Replace("\n", " ").Replace("\t", " ").Replace("\r", " ");
                                 htmlListUrl = htmlListUrl.Substring(htmlListUrl.IndexOf("<img src=/icons/collapse.gif")).Substring(0, htmlListUrl.Substring(htmlListUrl.IndexOf("<img src=/icons/collapse.gif")).IndexOf("<img src=/appls/legislacao/serc/legato.nsf/vwicn103.gif"));
 
                                 var listaUrlIndex1 = Regex.Split(htmlListUrl, "href=").ToList();
@@ -9462,7 +9306,7 @@ namespace Systax_BuscaLegal
                                     {
                                         novaUrlDocs = (itemMs.Substring(0, itemMs.IndexOf(".br/") + 3) + itemUrlDoc.Substring(0, itemUrlDoc.IndexOf(" "))).Replace("amp;", string.Empty).Replace("Count=30", "Count=300");
 
-                                        htmlListUrl = getHtmlPaginaByGet(novaUrlDocs, "default").Replace("\"", string.Empty).Replace("\n", " ").Replace("\t", " ").Replace("\r", " ");
+                                        htmlListUrl = new Facilities().getHtmlPaginaByGet(novaUrlDocs, "default").Replace("\"", string.Empty).Replace("\n", " ").Replace("\t", " ").Replace("\r", " ");
                                         htmlListUrl = htmlListUrl.Substring(htmlListUrl.IndexOf("<img src=/icons/collapse.gif")).Substring(0, htmlListUrl.Substring(htmlListUrl.IndexOf("<img src=/icons/collapse.gif")).IndexOf("<img src=/appls/legislacao/serc/legato.nsf/vwicn103.gif"));
 
                                         var listaUrlIndex2 = Regex.Split(htmlListUrl, "href=").ToList();
@@ -9495,7 +9339,7 @@ namespace Systax_BuscaLegal
                             {
                                 novaUrlDocs = (itemMs.Substring(0, itemMs.IndexOf(".br/") + 3) + itemUrlInt.Substring(0, itemUrlInt.IndexOf(" "))).Replace("amp;", string.Empty).Replace("Count=30", "Count=300");
 
-                                htmlListUrl = getHtmlPaginaByGet(novaUrlDocs, "default").Replace("\"", string.Empty).Replace("\n", " ").Replace("\t", " ").Replace("\r", " ");
+                                htmlListUrl = new Facilities().getHtmlPaginaByGet(novaUrlDocs, "default").Replace("\"", string.Empty).Replace("\n", " ").Replace("\t", " ").Replace("\r", " ");
                                 htmlListUrl = htmlListUrl.Substring(htmlListUrl.IndexOf("<img src=/icons/collapse.gif")).Substring(0, htmlListUrl.Substring(htmlListUrl.IndexOf("<img src=/icons/collapse.gif")).IndexOf("<img src=/appls/legislacao/serc/legato.nsf/vwicn103.gif"));
 
                                 var listaUrlIndex1 = Regex.Split(htmlListUrl, "href=").ToList();
@@ -9534,8 +9378,6 @@ namespace Systax_BuscaLegal
                 string urlTratada = string.Empty;
                 string htmlPage = string.Empty;
 
-                int inferno = 0;
-
                 var listaXxx = new List<string>();
 
                 foreach (var nivel1_item in listaUrl)
@@ -9565,7 +9407,7 @@ namespace Systax_BuscaLegal
                             string texto = string.Empty;
                             string corpoDados = string.Empty;
 
-                            string htmlText = getHtmlPaginaByGet(urlTratada, "default").Replace("\"", string.Empty).Replace("\n", " ").Replace("\t", " ").Replace("\r", " ");
+                            string htmlText = new Facilities().getHtmlPaginaByGet(urlTratada, "default").Replace("\"", string.Empty).Replace("\n", " ").Replace("\t", " ").Replace("\r", " ");
 
                             List<string> listInformacoes = new List<string>() { (htmlText.IndexOf("<font size=2 face=Tahoma>") >= 0 && htmlText.IndexOf("<input name=Ato_DspNumDO type=hidden value=") >= 0 ? htmlText.IndexOf("<font size=2 face=Tahoma>").ToString() : "-1") + "|<input name=Ato_DspNum type=hidden value=|>|<input name=Ato_DspEmenta type=hidden value=|>|<input name=Ato_DspNumDO type=hidden value=|>"
                                                                                ,(htmlText.IndexOf("<font size=2 face=Tahoma>") >= 0 && htmlText.IndexOf("<input name=Ato_DspNumDO type=hidden value=") < 0 && htmlText.IndexOf("<b><font face=Verdana>") >= 0 ? htmlText.IndexOf("<font size=2 face=Tahoma>").ToString() : "-1") + "|<font size=2 face=Tahoma>|</font>|<i><font size=2 face=Tahoma>|</font>|<font face=Verdana>|</font>"
@@ -9600,7 +9442,7 @@ namespace Systax_BuscaLegal
                                 titulo = texto.Substring(texto.IndexOf(listInformacoes[0].Split('|')[1])).Substring(0, texto.Substring(texto.IndexOf(listInformacoes[0].Split('|')[1])).IndexOf(listInformacoes[0].Split('|')[2]));
 
                             titulo = Regex.Replace(titulo.Trim(), @"\s+", " ").Replace("<input name=Ato_DspNum type=hidden value=", "<input name=Ato_DspNum type=hidden value=>");
-                            titulo = ObterStringLimpa(titulo);
+                            titulo = new Facilities().ObterStringLimpa(titulo);
 
                             if (!listInformacoes[0].Split('|')[5].Equals("nd"))
                                 publicacao = texto.Substring(texto.IndexOf(listInformacoes[0].Split('|')[5])).Substring(0, texto.Substring(texto.IndexOf(listInformacoes[0].Split('|')[5])).IndexOf(listInformacoes[0].Split('|')[6]));
@@ -9611,8 +9453,8 @@ namespace Systax_BuscaLegal
                             if (!listInformacoes[0].Split('|')[3].Equals("nd") && texto.IndexOf(listInformacoes[0].Split('|')[3]) >= 0)
                                 ementa = texto.Substring(texto.IndexOf(listInformacoes[0].Split('|')[3])).Substring(0, texto.Substring(texto.IndexOf(listInformacoes[0].Split('|')[3])).IndexOf(listInformacoes[0].Split('|')[4]));
 
-                            publicacao = ObterStringLimpa(publicacao.Replace("<input name=Ato_DspNumDO type=hidden value=", "<input name=Ato_DspNumDO type=hidden value=>"));
-                            ementa = ObterStringLimpa(ementa.Replace("<input name=Ato_DspEmenta type=hidden value=", "<input name=Ato_DspEmenta type=hidden value=>"));
+                            publicacao = new Facilities().ObterStringLimpa(publicacao.Replace("<input name=Ato_DspNumDO type=hidden value=", "<input name=Ato_DspNumDO type=hidden value=>"));
+                            ementa = new Facilities().ObterStringLimpa(ementa.Replace("<input name=Ato_DspEmenta type=hidden value=", "<input name=Ato_DspEmenta type=hidden value=>"));
 
                             especie = titulo.Substring(0, titulo.IndexOf(" "));
 
@@ -9671,7 +9513,7 @@ namespace Systax_BuscaLegal
                             ementaInserir.NumeroAto = Regex.Replace(numero, "[^0-9]+", string.Empty);
                             ementaInserir.DataEdicao = edicao;
                             ementaInserir.Texto = descStyle + novaCss + texto;
-                            ementaInserir.Hash = GerarHash(removerCaracterEspecial(ObterStringLimpa(removeTagScript(texto))));
+                            ementaInserir.Hash = new Facilities().GerarHash(new Facilities().removerCaracterEspecial(new Facilities().ObterStringLimpa(new Facilities().removeTagScript(texto))));
                             ementaInserir.IdFila = itemLista_Nivel2.Id;
 
                             ementaInserir.Escopo = "MS";
@@ -9685,16 +9527,14 @@ namespace Systax_BuscaLegal
 
                             new BuscaLegalDao().AtualizarFontes(new List<dynamic>() { itemFonte });
                         }
-                        catch (Exception ex)
+                        catch (Exception)
                         {
-                            if (!htmlPage.Contains("Erro ao processar página, detalhes:"))
-                                MessageBox.Show("Erro - index:" + inferno.ToString());
                         }
                     }
 
-                    string novoNcm = "TITULO\n";
-                    listaXxx.ForEach(x => novoNcm += x.Replace("\n", "|") + "\n");
-                    File.WriteAllText(@"C:\Temp\NovasNCM.csv", novoNcm);
+                    //string novoNcm = "TITULO\n";
+                    //listaXxx.ForEach(x => novoNcm += x.Replace("\n", "|") + "\n");
+                    //File.WriteAllText(@"C:\Temp\NovasNCM.csv", novoNcm);
                 }
             }
 
@@ -9708,9 +9548,6 @@ namespace Systax_BuscaLegal
 
             if (modoProcessamento.Equals("f") || modoProcessamento.Equals("u1"))
             {
-
-                this.Text = "Fonte: Sefaz PB";
-
                 string htmlPage = string.Empty;
 
                 List<string> linksSefazPb = new List<string>() { "https://www.receita.pb.gov.br/ser/legislacao/34-leis"
@@ -9733,7 +9570,7 @@ namespace Systax_BuscaLegal
 
                         objUrll.Lista_Nivel2 = new List<dynamic>();
 
-                        string htmlListUrl = getHtmlPaginaByGet(itemPb, "default").Replace("\"", string.Empty).Replace("\n", " ").Replace("\t", " ").Replace("\r", " ");
+                        string htmlListUrl = new Facilities().getHtmlPaginaByGet(itemPb, "default").Replace("\"", string.Empty).Replace("\n", " ").Replace("\t", " ").Replace("\r", " ");
 
                         htmlListUrl = htmlListUrl.Substring(htmlListUrl.IndexOf("<div class=items-container>")).Substring(0, htmlListUrl.Substring(htmlListUrl.IndexOf("<div class=items-container>")).IndexOf("<div id=syndicate class=mob-noNav>"));
 
@@ -9799,7 +9636,7 @@ namespace Systax_BuscaLegal
                             string texto = string.Empty;
                             string corpoDados = string.Empty;
 
-                            string htmlText = getHtmlPaginaByGet(urlTratada, string.Empty).Replace("\"", string.Empty).Replace("\n", " ").Replace("\t", " ").Replace("\r", " ").Replace("'", string.Empty);
+                            string htmlText = new Facilities().getHtmlPaginaByGet(urlTratada, string.Empty).Replace("\"", string.Empty).Replace("\n", " ").Replace("\t", " ").Replace("\r", " ").Replace("'", string.Empty);
 
                             List<string> listInformacoes = new List<string>() { (htmlText.IndexOf("<div class=content-text") >= 0 && htmlText.IndexOf("<span style=color: #ff0000;") >= 0 ? htmlText.IndexOf("<div class=content-text").ToString() : "-1") + "|<div class=attachmentsContainer>|<h2 id=content-title>|</h2>|<blockquote class=blockquote-reverse top-space|</blockquote>|<span style=color: #ff0000;|</span>" 
                                                                                ,(htmlText.IndexOf("<div class=content-text") >= 0 && htmlText.IndexOf("<span style=font-family: Arial")  >= 0 ? htmlText.IndexOf("<div class=content-text").ToString() : "-1") + "|<div class=attachmentsContainer>|<h2 id=content-title>|</h2>|<blockquote class=blockquote-reverse top-space|</blockquote>|<span style=font-family: Arial|</span>"
@@ -9821,7 +9658,7 @@ namespace Systax_BuscaLegal
                                 titulo = htmlText.Substring(htmlText.IndexOf(listInformacoes[0].Split('|')[2])).Substring(0, htmlText.Substring(htmlText.IndexOf(listInformacoes[0].Split('|')[2])).IndexOf(listInformacoes[0].Split('|')[3]));
 
                             titulo = Regex.Replace(titulo.Trim(), @"\s+", " ");
-                            titulo = System.Net.WebUtility.HtmlDecode(ObterStringLimpa(titulo));
+                            titulo = System.Net.WebUtility.HtmlDecode(new Facilities().ObterStringLimpa(titulo));
 
                             if (!listInformacoes[0].Split('|')[6].Equals("nd"))
                                 publicacao = htmlText.Substring(htmlText.IndexOf(listInformacoes[0].Split('|')[6])).Substring(0, htmlText.Substring(htmlText.IndexOf(listInformacoes[0].Split('|')[6])).IndexOf(listInformacoes[0].Split('|')[7]));
@@ -9832,8 +9669,8 @@ namespace Systax_BuscaLegal
                             if (!listInformacoes[0].Split('|')[4].Equals("nd") && htmlText.IndexOf(listInformacoes[0].Split('|')[4]) >= 0)
                                 ementa = htmlText.Substring(htmlText.IndexOf(listInformacoes[0].Split('|')[4])).Substring(0, htmlText.Substring(htmlText.IndexOf(listInformacoes[0].Split('|')[4])).IndexOf(listInformacoes[0].Split('|')[5]));
 
-                            publicacao = System.Net.WebUtility.HtmlDecode(ObterStringLimpa(publicacao));
-                            ementa = System.Net.WebUtility.HtmlDecode(ObterStringLimpa(ementa));
+                            publicacao = System.Net.WebUtility.HtmlDecode(new Facilities().ObterStringLimpa(publicacao));
+                            ementa = System.Net.WebUtility.HtmlDecode(new Facilities().ObterStringLimpa(ementa));
 
                             especie = titulo.Substring(0, titulo.IndexOf(" "));
 
@@ -9892,7 +9729,7 @@ namespace Systax_BuscaLegal
                             ementaInserir.NumeroAto = Regex.Replace(numero, "[^0-9]+", string.Empty);
                             ementaInserir.DataEdicao = edicao;
                             ementaInserir.Texto = descStyle + novaCss + texto;
-                            ementaInserir.Hash = GerarHash(removerCaracterEspecial(ObterStringLimpa(removeTagScript(texto))));
+                            ementaInserir.Hash = new Facilities().GerarHash(new Facilities().removerCaracterEspecial(new Facilities().ObterStringLimpa(new Facilities().removeTagScript(texto))));
                             ementaInserir.IdFila = itemLista_Nivel2.Id;
 
                             ementaInserir.Escopo = "PB";
@@ -9915,9 +9752,9 @@ namespace Systax_BuscaLegal
                         }
                     }
 
-                    string novoNcm = "TITULO\n";
-                    listaXxx.ForEach(x => novoNcm += x.Replace("\n", "|") + "\n");
-                    File.WriteAllText(@"C:\Temp\SefazPB.csv", novoNcm);
+                    //string novoNcm = "TITULO\n";
+                    //listaXxx.ForEach(x => novoNcm += x.Replace("\n", "|") + "\n");
+                    //File.WriteAllText(@"C:\Temp\SefazPB.csv", novoNcm);
                 }
             }
 
@@ -9931,9 +9768,6 @@ namespace Systax_BuscaLegal
 
             if (modoProcessamento.Equals("f") || modoProcessamento.Equals("u1"))
             {
-
-                this.Text = "Fonte: Sefaz PB1";
-
                 string htmlPage = string.Empty;
 
                 List<string> linksSefazPb = new List<string>() { "http://www9.receita.pb.gov.br/leis.php"
@@ -9996,7 +9830,7 @@ namespace Systax_BuscaLegal
                             string texto = string.Empty;
                             string corpoDados = string.Empty;
 
-                            string htmlText = getHtmlPaginaByGet(urlTratada, string.Empty).Replace("\"", string.Empty).Replace("\n", " ").Replace("\t", " ").Replace("\r", " ").Replace("'", string.Empty);
+                            string htmlText = new Facilities().getHtmlPaginaByGet(urlTratada, string.Empty).Replace("\"", string.Empty).Replace("\n", " ").Replace("\t", " ").Replace("\r", " ").Replace("'", string.Empty);
 
                             List<string> listInformacoes = new List<string>() { "" };
 
@@ -10015,7 +9849,7 @@ namespace Systax_BuscaLegal
                                 titulo = htmlText.Substring(htmlText.IndexOf(listInformacoes[0].Split('|')[2])).Substring(0, htmlText.Substring(htmlText.IndexOf(listInformacoes[0].Split('|')[2])).IndexOf(listInformacoes[0].Split('|')[3]));
 
                             titulo = Regex.Replace(titulo.Trim(), @"\s+", " ");
-                            titulo = System.Net.WebUtility.HtmlDecode(ObterStringLimpa(titulo));
+                            titulo = System.Net.WebUtility.HtmlDecode(new Facilities().ObterStringLimpa(titulo));
 
                             if (!listInformacoes[0].Split('|')[6].Equals("nd"))
                                 publicacao = htmlText.Substring(htmlText.IndexOf(listInformacoes[0].Split('|')[6])).Substring(0, htmlText.Substring(htmlText.IndexOf(listInformacoes[0].Split('|')[6])).IndexOf(listInformacoes[0].Split('|')[7]));
@@ -10026,8 +9860,8 @@ namespace Systax_BuscaLegal
                             if (!listInformacoes[0].Split('|')[4].Equals("nd") && htmlText.IndexOf(listInformacoes[0].Split('|')[4]) >= 0)
                                 ementa = htmlText.Substring(htmlText.IndexOf(listInformacoes[0].Split('|')[4])).Substring(0, htmlText.Substring(htmlText.IndexOf(listInformacoes[0].Split('|')[4])).IndexOf(listInformacoes[0].Split('|')[5]));
 
-                            publicacao = System.Net.WebUtility.HtmlDecode(ObterStringLimpa(publicacao));
-                            ementa = System.Net.WebUtility.HtmlDecode(ObterStringLimpa(ementa));
+                            publicacao = System.Net.WebUtility.HtmlDecode(new Facilities().ObterStringLimpa(publicacao));
+                            ementa = System.Net.WebUtility.HtmlDecode(new Facilities().ObterStringLimpa(ementa));
 
                             especie = titulo.Substring(0, titulo.IndexOf(" "));
 
@@ -10086,7 +9920,7 @@ namespace Systax_BuscaLegal
                             ementaInserir.NumeroAto = Regex.Replace(numero, "[^0-9]+", string.Empty);
                             ementaInserir.DataEdicao = edicao;
                             ementaInserir.Texto = descStyle + novaCss + texto;
-                            ementaInserir.Hash = GerarHash(removerCaracterEspecial(ObterStringLimpa(removeTagScript(texto))));
+                            ementaInserir.Hash = new Facilities().GerarHash(new Facilities().removerCaracterEspecial(new Facilities().ObterStringLimpa(new Facilities().removeTagScript(texto))));
                             ementaInserir.IdFila = itemLista_Nivel2.Id;
 
                             ementaInserir.Escopo = "PB";
@@ -10106,9 +9940,9 @@ namespace Systax_BuscaLegal
                         }
                     }
 
-                    string novoNcm = "TITULO\n";
-                    listaXxx.ForEach(x => novoNcm += x.Replace("\n", "|") + "\n");
-                    File.WriteAllText(@"C:\Temp\SefazPB1.csv", novoNcm);
+                    //string novoNcm = "TITULO\n";
+                    //listaXxx.ForEach(x => novoNcm += x.Replace("\n", "|") + "\n");
+                    //File.WriteAllText(@"C:\Temp\SefazPB1.csv", novoNcm);
                 }
             }
 
@@ -10122,9 +9956,6 @@ namespace Systax_BuscaLegal
 
             if (modoProcessamento.Equals("f") || modoProcessamento.Equals("u1"))
             {
-
-                this.Text = "Fonte: Sefaz PA";
-
                 string htmlPage = string.Empty;
 
                 List<string> linksSefazPa = new List<string>() { "http://www.sefa.pa.gov.br/index.php/legislacao/estadual/10-leis-estaduais"
@@ -10152,7 +9983,7 @@ namespace Systax_BuscaLegal
 
                         if (!itemPa.Contains(".pdf"))
                         {
-                            string htmlListUrl = getHtmlPaginaByGet(itemPa.Split('|')[0], "default").Replace("\"", string.Empty).Replace("\n", " ").Replace("\t", " ").Replace("\r", " ");
+                            string htmlListUrl = new Facilities().getHtmlPaginaByGet(itemPa.Split('|')[0], "default").Replace("\"", string.Empty).Replace("\n", " ").Replace("\t", " ").Replace("\r", " ");
 
                             if (itemPa.Split('|').Length <= 1)
                                 htmlListUrl = htmlListUrl.Substring(htmlListUrl.IndexOf("<span class=sub-category")).Substring(0, htmlListUrl.Substring(htmlListUrl.IndexOf("<span class=sub-category")).IndexOf("<hr class=separador-interno>"));
@@ -10172,7 +10003,7 @@ namespace Systax_BuscaLegal
                                 {
                                     listaUrlIndex.Remove(itemCopia);
 
-                                    htmlListUrl = getHtmlPaginaByGet(itemCopia, "default").Replace("\"", string.Empty).Replace("\n", " ").Replace("\t", " ").Replace("\r", " ");
+                                    htmlListUrl = new Facilities().getHtmlPaginaByGet(itemCopia, "default").Replace("\"", string.Empty).Replace("\n", " ").Replace("\t", " ").Replace("\r", " ");
 
                                     htmlListUrl = htmlListUrl.Substring(htmlListUrl.IndexOf("<span class=sub-category")).Substring(0, htmlListUrl.Substring(htmlListUrl.IndexOf("<span class=sub-category")).IndexOf("<hr class=separador-interno>"));
 
@@ -10257,7 +10088,7 @@ namespace Systax_BuscaLegal
                                 webclient.DownloadFile(urlTratada, nomeArq);
                             }
 
-                            string dadosPdf = LeArquivo(nomeArq);
+                            string dadosPdf = new Facilities().LeArquivo(nomeArq);
 
                             File.Delete(nomeArq);
 
@@ -10350,7 +10181,7 @@ namespace Systax_BuscaLegal
                             ementaInserir.NumeroAto = Regex.Replace(numero, "[^0-9]+", string.Empty);
                             ementaInserir.DataEdicao = edicao;
                             ementaInserir.Texto = texto;
-                            ementaInserir.Hash = GerarHash(removerCaracterEspecial(removeTagScript(texto)));
+                            ementaInserir.Hash = new Facilities().GerarHash(new Facilities().removerCaracterEspecial(new Facilities().removeTagScript(texto)));
                             ementaInserir.IdFila = itemLista_Nivel2.Id;
 
                             ementaInserir.Escopo = "PA";
@@ -10385,9 +10216,6 @@ namespace Systax_BuscaLegal
 
             if (modoProcessamento.Equals("f") || modoProcessamento.Equals("u1"))
             {
-
-                this.Text = "Fonte: Sefaz PE";
-
                 string htmlPage = string.Empty;
 
                 List<string> linksSefazPa = new List<string>() { "https://www.sefaz.pe.gov.br/Legislacao/Tributaria/Paginas/Legislacao-Tributaria-Estadual.aspx" };
@@ -10406,7 +10234,7 @@ namespace Systax_BuscaLegal
                         List<string> listaUrlIndex;
                         List<string> listaUrlIndexLvl2;
 
-                        string htmlListUrl = getHtmlPaginaByGet(itemPe.Split('|')[0], "default").Replace("\"", string.Empty).Replace("\n", " ").Replace("\t", " ").Replace("\r", " ");
+                        string htmlListUrl = new Facilities().getHtmlPaginaByGet(itemPe.Split('|')[0], "default").Replace("\"", string.Empty).Replace("\n", " ").Replace("\t", " ").Replace("\r", " ");
 
                         htmlListUrl = htmlListUrl.Substring(htmlListUrl.IndexOf("Normas publicadas pela SEFAZ/PE</div>")).Substring(0, htmlListUrl.Substring(htmlListUrl.IndexOf("Normas publicadas pela SEFAZ/PE</div>")).IndexOf("<div id=footer class=ms-dialogHidden>"));
 
@@ -10420,7 +10248,7 @@ namespace Systax_BuscaLegal
                         {
                             try
                             {
-                                htmlListUrl = getHtmlPaginaByGet(itemUrlInt, "default").Replace("\"", string.Empty).Replace("\n", " ").Replace("\t", " ").Replace("\r", " ");
+                                htmlListUrl = new Facilities().getHtmlPaginaByGet(itemUrlInt, "default").Replace("\"", string.Empty).Replace("\n", " ").Replace("\t", " ").Replace("\r", " ");
 
                                 htmlListUrl = htmlListUrl.Substring(htmlListUrl.IndexOf("<body")).Substring(0, htmlListUrl.Substring(htmlListUrl.IndexOf("<body")).IndexOf("</body>"));
 
@@ -10488,7 +10316,7 @@ namespace Systax_BuscaLegal
                             string texto = string.Empty;
                             string corpoDados = string.Empty;
 
-                            string htmlText = getHtmlPaginaByGet(urlTratada, "default").Replace("\"", string.Empty).Replace("\n", " ").Replace("\t", " ").Replace("\r", " ").Replace("'", string.Empty);
+                            string htmlText = new Facilities().getHtmlPaginaByGet(urlTratada, "default").Replace("\"", string.Empty).Replace("\n", " ").Replace("\t", " ").Replace("\r", " ").Replace("'", string.Empty);
 
                             List<string> listInformacoes = new List<string>() { (htmlText.IndexOf("<body ") >= 0 && htmlText.IndexOf("<p class=A01TtuloNorma") >= 0 && htmlText.IndexOf("<p class=A02DataPublicacao") >= 0 ? htmlText.IndexOf("<body ").ToString() : "-1") + "|</body>|<p class=A01TtuloNorma|</p>|nd|nd|<p class=A02DataPublicacao|</p>"
                                                                                ,(htmlText.IndexOf("<body ") >= 0 && htmlText.IndexOf("<p class=A03Ementa") >= 0 && htmlText.IndexOf("<p class=A02DataPublicacao") < 0 && htmlText.IndexOf("<p class=A01TtuloNorma") >= 0 && htmlText.IndexOf("DOE de ") >= 0 ? htmlText.IndexOf("<body ").ToString() : "-1") + "|</body>|<p class=A01TtuloNorma|</p>|<p class=A03Ementa|</p>|DOE de |</p>"
@@ -10524,7 +10352,7 @@ namespace Systax_BuscaLegal
                                 titulo = htmlText.Substring(htmlText.IndexOf(listInformacoes[0].Split('|')[2])).Substring(0, htmlText.Substring(htmlText.IndexOf(listInformacoes[0].Split('|')[2])).IndexOf(listInformacoes[0].Split('|')[3]));
 
                             titulo = Regex.Replace(titulo.Trim(), @"\s+", " ");
-                            titulo = System.Net.WebUtility.HtmlDecode(ObterStringLimpa(titulo));
+                            titulo = System.Net.WebUtility.HtmlDecode(new Facilities().ObterStringLimpa(titulo));
 
                             if (!listInformacoes[0].Split('|')[6].Equals("nd"))
                                 publicacao = htmlText.Substring(htmlText.IndexOf(listInformacoes[0].Split('|')[6])).Substring(0, htmlText.Substring(htmlText.IndexOf(listInformacoes[0].Split('|')[6])).IndexOf(listInformacoes[0].Split('|')[7]));
@@ -10535,8 +10363,8 @@ namespace Systax_BuscaLegal
                             if (!listInformacoes[0].Split('|')[4].Equals("nd") && htmlText.IndexOf(listInformacoes[0].Split('|')[4]) >= 0)
                                 ementa = htmlText.Substring(htmlText.IndexOf(listInformacoes[0].Split('|')[4])).Substring(0, htmlText.Substring(htmlText.IndexOf(listInformacoes[0].Split('|')[4])).IndexOf(listInformacoes[0].Split('|')[5]));
 
-                            publicacao = System.Net.WebUtility.HtmlDecode(ObterStringLimpa(publicacao));
-                            ementa = System.Net.WebUtility.HtmlDecode(ObterStringLimpa(ementa));
+                            publicacao = System.Net.WebUtility.HtmlDecode(new Facilities().ObterStringLimpa(publicacao));
+                            ementa = System.Net.WebUtility.HtmlDecode(new Facilities().ObterStringLimpa(ementa));
 
                             especie = titulo.Substring(0, titulo.IndexOf(" "));
 
@@ -10595,7 +10423,7 @@ namespace Systax_BuscaLegal
                             ementaInserir.NumeroAto = Regex.Replace(numero, "[^0-9]+", string.Empty);
                             ementaInserir.DataEdicao = edicao;
                             ementaInserir.Texto = descStyle + novaCss + texto;
-                            ementaInserir.Hash = GerarHash(removerCaracterEspecial(ObterStringLimpa(removeTagScript(texto))));
+                            ementaInserir.Hash = new Facilities().GerarHash(new Facilities().removerCaracterEspecial(new Facilities().ObterStringLimpa(new Facilities().removeTagScript(texto))));
                             ementaInserir.IdFila = itemLista_Nivel2.Id;
 
                             ementaInserir.Escopo = "PE";
@@ -10615,9 +10443,9 @@ namespace Systax_BuscaLegal
                         }
                     }
 
-                    string novoNcm = "TITULO\n";
-                    listaXxx.ForEach(x => novoNcm += x.Replace("\n", "|") + "\n");
-                    File.WriteAllText(@"C:\Temp\NovasNCM.csv", novoNcm);
+                    //string novoNcm = "TITULO\n";
+                    //listaXxx.ForEach(x => novoNcm += x.Replace("\n", "|") + "\n");
+                    //File.WriteAllText(@"C:\Temp\NovasNCM.csv", novoNcm);
                 }
             }
 
@@ -10631,9 +10459,6 @@ namespace Systax_BuscaLegal
 
             if (modoProcessamento.Equals("f") || modoProcessamento.Equals("u1"))
             {
-
-                this.Text = "Fonte: Sefaz PE";
-
                 string htmlPage = string.Empty;
 
                 List<string> linksSefazPi = new List<string>() { "http://webas.sefaz.pi.gov.br/legislacao/atos-normativos/?resultsToSkip={0}"
@@ -10662,7 +10487,7 @@ namespace Systax_BuscaLegal
 
                             List<string> listaUrlIndex;
 
-                            string htmlListUrl = getHtmlPaginaByGet(string.Format(itemPi, paginacao.ToString()), "default").Replace("\"", string.Empty).Replace("\n", " ").Replace("\t", " ").Replace("\r", " ");
+                            string htmlListUrl = new Facilities().getHtmlPaginaByGet(string.Format(itemPi, paginacao.ToString()), "default").Replace("\"", string.Empty).Replace("\n", " ").Replace("\t", " ").Replace("\r", " ");
 
                             if (htmlListUrl.Contains("Respondeu com status de 500 - Internal Error."))
                                 break;
@@ -10754,7 +10579,7 @@ namespace Systax_BuscaLegal
                                 webclient.DownloadFile(urlTratada, nomeArq);
                             }
 
-                            string dadosPdf = LeArquivo(nomeArq);
+                            string dadosPdf = new Facilities().LeArquivo(nomeArq);
 
                             File.Delete(nomeArq);
 
@@ -10846,7 +10671,7 @@ namespace Systax_BuscaLegal
                             ementaInserir.NumeroAto = Regex.Replace(numero, "[^0-9]+", string.Empty);
                             ementaInserir.DataEdicao = edicao;
                             ementaInserir.Texto = texto;
-                            ementaInserir.Hash = GerarHash(removerCaracterEspecial(removeTagScript(texto)));
+                            ementaInserir.Hash = new Facilities().GerarHash(new Facilities().removerCaracterEspecial(new Facilities().removeTagScript(texto)));
                             ementaInserir.IdFila = itemLista_Nivel2.Id;
 
                             ementaInserir.Escopo = "PI";
@@ -10881,13 +10706,11 @@ namespace Systax_BuscaLegal
 
             if (modoProcessamento.Equals("f") || modoProcessamento.Equals("u1"))
             {
-                this.Text = "Fonte: Sefaz RO";
+                webBrowserGERAL = new WebBrowser();
 
-                webBrowser1 = new WebBrowser();
-
-                webBrowser1.ScriptErrorsSuppressed = true;
-                webBrowser1.Navigate(@"http://www.sefin.ro.gov.br/lista.jsp?tipo=lei&formato=108");
-                webBrowser1.DocumentCompleted += new WebBrowserDocumentCompletedEventHandler(webBrowser1_DocumentCompletedSefazRo);
+                webBrowserGERAL.ScriptErrorsSuppressed = true;
+                webBrowserGERAL.Navigate(@"http://www.sefin.ro.gov.br/lista.jsp?tipo=lei&formato=108");
+                webBrowserGERAL.DocumentCompleted += new WebBrowserDocumentCompletedEventHandler(webBrowser1_DocumentCompletedSefazRo);
             }
 
             #endregion
@@ -10944,7 +10767,7 @@ namespace Systax_BuscaLegal
                                 webClient.DownloadFile("https://" + urlTratada, nomeArq);
                             }
 
-                            string dadosPdf = LeArquivo(nomeArq);
+                            string dadosPdf = new Facilities().LeArquivo(nomeArq);
 
                             File.Delete(nomeArq);
 
@@ -11054,7 +10877,7 @@ namespace Systax_BuscaLegal
                             ementaInserir.NumeroAto = Regex.Replace(numero, "[^0-9]+", string.Empty);
                             ementaInserir.DataEdicao = edicao;
                             ementaInserir.Texto = texto;
-                            ementaInserir.Hash = GerarHash(removerCaracterEspecial(removeTagScript(texto)));
+                            ementaInserir.Hash = new Facilities().GerarHash(new Facilities().removerCaracterEspecial(new Facilities().removeTagScript(texto)));
                             ementaInserir.IdFila = itemLista_Nivel2.Id;
 
                             ementaInserir.Escopo = "RO";
@@ -11068,16 +10891,14 @@ namespace Systax_BuscaLegal
 
                             new BuscaLegalDao().AtualizarFontes(new List<dynamic>() { itemFonte });
                         }
-                        catch (Exception ex)
+                        catch (Exception)
                         {
-                            if (!ex.Message.ToLower().Contains("404") && !ex.Message.ToLower().Contains("found"))
-                                urlTratada = urlTratada;
                         }
                     }
 
-                    string novoNcm = "TITULO\n";
-                    listaXxx.ForEach(x => novoNcm += x.Replace("\n", "|") + "\n");
-                    File.WriteAllText(@"C:\Temp\NovasNCM.csv", novoNcm);
+                    //string novoNcm = "TITULO\n";
+                    //listaXxx.ForEach(x => novoNcm += x.Replace("\n", "|") + "\n");
+                    //File.WriteAllText(@"C:\Temp\NovasNCM.csv", novoNcm);
                 }
             }
 
@@ -11091,13 +10912,20 @@ namespace Systax_BuscaLegal
 
             if (modoProcessamento.Equals("f") || modoProcessamento.Equals("u1"))
             {
-                this.Text = "Fonte: Sefaz RR";
 
-                webBrowser1 = new WebBrowser();
+                webBrowserSefazRR = new WebBrowser();
 
-                webBrowser1.ScriptErrorsSuppressed = true;
-                webBrowser1.Navigate(@"https://www.sefaz.rr.gov.br/repasse/servlet/wslistadocumentos");
-                webBrowser1.DocumentCompleted += new WebBrowserDocumentCompletedEventHandler(Wb_DocumentCompleted_SefazRR);
+                webBrowserSefazRR.DocumentCompleted += new WebBrowserDocumentCompletedEventHandler(Wb_DocumentCompleted_SefazRR);
+                webBrowserSefazRR.Navigate(@"https://www.sefaz.rr.gov.br/repasse/servlet/wslistadocumentos");
+
+                System.Timers.Timer aTimer = new System.Timers.Timer();
+                aTimer.Interval = 5000;
+                // Hook up the Elapsed event for the timer. 
+                aTimer.Elapsed += SimulacaoClick;
+                // Have the timer fire repeated events (true is the default)
+                aTimer.AutoReset = false;
+                // Start the timer
+                aTimer.Enabled = true;
             }
 
             #endregion
@@ -11114,9 +10942,6 @@ namespace Systax_BuscaLegal
 
             if (modoProcessamento.Equals("f") || modoProcessamento.Equals("u1"))
             {
-
-                this.Text = "Fonte: Sefaz SE";
-
                 List<string> linksSefazSe = new List<string>() { 
                   "http://legislacao.sefaz.se.gov.br/legisinternet.dll?f=templates&fn=tools-contents.htm&cp=Infobase3%2F03-paf&2.0"
                  ,"http://legislacao.sefaz.se.gov.br/legisinternet.dll?f=templates&fn=tools-contents.htm&cp=Infobase3%2F04-peq&2.0"
@@ -11180,7 +11005,7 @@ namespace Systax_BuscaLegal
                             string texto = string.Empty;
                             string corpoDados = string.Empty;
 
-                            string htmlText = getHtmlPaginaByGet(urlTratada, "default").Replace("\"", string.Empty).Replace("\n", " ").Replace("\t", " ").Replace("\r", " ").Replace("'", string.Empty);
+                            string htmlText = new Facilities().getHtmlPaginaByGet(urlTratada, "default").Replace("\"", string.Empty).Replace("\n", " ").Replace("\t", " ").Replace("\r", " ").Replace("'", string.Empty);
 
                             List<string> listInformacoes = new List<string>() { htmlText.IndexOf("<h1") >= 0 && htmlText.ToLower().IndexOf("class=ementa") >= 0 && htmlText.ToLower().IndexOf("class=publicacao") >= 0 ? "<h1|</h1>|class=publicacao|</p>|class=ementa|</p>" : "-1"
                                                                                ,htmlText.IndexOf("<h1") >= 0 && htmlText.ToLower().IndexOf("class=ementa") < 0 ? "<h1|</h1>|class=publicacao|</p>|<p style=margin-left:200|</p>" : "-1"
@@ -11202,7 +11027,7 @@ namespace Systax_BuscaLegal
                                 titulo = htmlText.Substring(htmlText.ToLower().IndexOf(listInformacoes[0].Split('|')[0])).Substring(0, htmlText.Substring(htmlText.ToLower().IndexOf(listInformacoes[0].Split('|')[0])).ToLower().IndexOf(listInformacoes[0].Split('|')[1]));
 
                             titulo = Regex.Replace(titulo.Trim(), @"\s+", " ");
-                            titulo = System.Net.WebUtility.HtmlDecode(ObterStringLimpa(titulo));
+                            titulo = System.Net.WebUtility.HtmlDecode(new Facilities().ObterStringLimpa(titulo));
 
                             if (!listInformacoes[0].Split('|')[2].Equals("nd"))
                                 publicacao = "<" + htmlText.Substring(htmlText.ToLower().IndexOf(listInformacoes[0].Split('|')[2])).Substring(0, htmlText.Substring(htmlText.ToLower().IndexOf(listInformacoes[0].Split('|')[2])).ToLower().IndexOf(listInformacoes[0].Split('|')[3]));
@@ -11210,8 +11035,8 @@ namespace Systax_BuscaLegal
                             if (!listInformacoes[0].Split('|')[4].Equals("nd"))
                                 ementa = "<" + htmlText.Substring(htmlText.ToLower().IndexOf(listInformacoes[0].Split('|')[4])).Substring(0, htmlText.Substring(htmlText.ToLower().IndexOf(listInformacoes[0].Split('|')[4])).ToLower().IndexOf(listInformacoes[0].Split('|')[5]));
 
-                            publicacao = System.Net.WebUtility.HtmlDecode(ObterStringLimpa(publicacao));
-                            ementa = System.Net.WebUtility.HtmlDecode(ObterStringLimpa(ementa));
+                            publicacao = System.Net.WebUtility.HtmlDecode(new Facilities().ObterStringLimpa(publicacao));
+                            ementa = System.Net.WebUtility.HtmlDecode(new Facilities().ObterStringLimpa(ementa));
 
                             if (publicacao.Trim().Equals(string.Empty))
                             {
@@ -11220,7 +11045,7 @@ namespace Systax_BuscaLegal
 
                                 listItens = listItens.Select(x => "<" + x.Substring(0, x.IndexOf("</p>"))).ToList();
 
-                                listItens.ForEach(x => publicacao = !System.Net.WebUtility.HtmlDecode(ObterStringLimpa(x)).Trim().Equals(string.Empty) && publicacao.Trim().Equals(string.Empty) ? System.Net.WebUtility.HtmlDecode(ObterStringLimpa(x)).Trim() : publicacao);
+                                listItens.ForEach(x => publicacao = !System.Net.WebUtility.HtmlDecode(new Facilities().ObterStringLimpa(x)).Trim().Equals(string.Empty) && publicacao.Trim().Equals(string.Empty) ? System.Net.WebUtility.HtmlDecode(new Facilities().ObterStringLimpa(x)).Trim() : publicacao);
                             }
 
                             especie = titulo.Substring(0, titulo.IndexOf(" "));
@@ -11280,7 +11105,7 @@ namespace Systax_BuscaLegal
                             ementaInserir.NumeroAto = Regex.Replace(numero, "[^0-9]+", string.Empty);
                             ementaInserir.DataEdicao = edicao;
                             ementaInserir.Texto = descStyle + novaCss + texto;
-                            ementaInserir.Hash = GerarHash(removerCaracterEspecial(ObterStringLimpa(removeTagScript(texto))));
+                            ementaInserir.Hash = new Facilities().GerarHash(new Facilities().removerCaracterEspecial(new Facilities().ObterStringLimpa(new Facilities().removeTagScript(texto))));
                             ementaInserir.IdFila = itemLista_Nivel2.Id;
 
                             ementaInserir.Escopo = "SE";
@@ -11300,9 +11125,9 @@ namespace Systax_BuscaLegal
                         }
                     }
 
-                    string novoNcm = "URL\n";
-                    listaXxx.ForEach(x => novoNcm += x.Replace("\n", "|") + "\n");
-                    File.WriteAllText(@"C:\Temp\NovasNCM.csv", novoNcm);
+                    //string novoNcm = "URL\n";
+                    //listaXxx.ForEach(x => novoNcm += x.Replace("\n", "|") + "\n");
+                    //File.WriteAllText(@"C:\Temp\NovasNCM.csv", novoNcm);
                 }
             }
 
@@ -11316,9 +11141,6 @@ namespace Systax_BuscaLegal
 
             if (modoProcessamento.Equals("f") || modoProcessamento.Equals("u1"))
             {
-
-                this.Text = "Fonte: Sefaz TO";
-
                 List<string> linksSefazTo = new List<string>() { 
                   "http://dtri.sefaz.to.gov.br/legislacao/ntributaria/Leis/table_leis.htm"
                  ,"http://dtri.sefaz.to.gov.br/legislacao/ntributaria/decretos/table_decretos.htm"
@@ -11394,14 +11216,14 @@ namespace Systax_BuscaLegal
                                     webclient.DownloadFile(urlTratada, nomeArq);
                                 }
 
-                                texto = LeArquivo(nomeArq);
+                                texto = new Facilities().LeArquivo(nomeArq);
 
                                 File.Delete(nomeArq);
                             }
 
                             else
                             {
-                                string htmlText = getHtmlPaginaByGet(urlTratada, "default").Replace("\"", string.Empty).Replace("\n", " ").Replace("\t", " ").Replace("\r", " ").Replace("'", string.Empty);
+                                string htmlText = new Facilities().getHtmlPaginaByGet(urlTratada, "default").Replace("\"", string.Empty).Replace("\n", " ").Replace("\t", " ").Replace("\r", " ").Replace("'", string.Empty);
 
                                 List<string> listInformacoes = new List<string>() {/*00*/(htmlText.ToLower().IndexOf("<p class=msonormal style=text-align: center") >= 0 && htmlText.ToLower().IndexOf("<p align=justify class=msonormal") >= 0) ? htmlText.ToLower().IndexOf("<p class=msonormal style=text-align: center").ToString() + "|<p class=msonormal style=text-align: center|</p>|<p align=justify class=msonormal|</p>" : "-1"
                                                                                    /*01*/,(htmlText.ToLower().IndexOf("<p class=msonormal style=text-align: center") >= 0 && htmlText.ToLower().IndexOf("<p class=msonormal style=text-align:") >= 0) ? htmlText.ToLower().IndexOf("<p class=msonormal style=text-align: center").ToString() + "|<p class=msonormal style=text-align: center|</p>|<p class=msonormal style=text-align:|</p>" : "-1"
@@ -11538,7 +11360,7 @@ namespace Systax_BuscaLegal
                                     titulo = htmlText.Substring(htmlText.ToLower().IndexOf(listInformacoes[0].Split('|')[1])).Substring(0, htmlText.Substring(htmlText.ToLower().IndexOf(listInformacoes[0].Split('|')[1])).ToLower().IndexOf(listInformacoes[0].Split('|')[2]));
 
                                 titulo = Regex.Replace(titulo.Trim(), @"\s+", " ");
-                                titulo = System.Net.WebUtility.HtmlDecode(ObterStringLimpa(titulo));
+                                titulo = System.Net.WebUtility.HtmlDecode(new Facilities().ObterStringLimpa(titulo));
 
                                 //if (!listInformacoes[0].Split('|')[2].Equals("nd"))
                                 //    publicacao = "<" + htmlText.Substring(htmlText.ToLower().IndexOf(listInformacoes[0].Split('|')[2])).Substring(0, htmlText.Substring(htmlText.ToLower().IndexOf(listInformacoes[0].Split('|')[2])).ToLower().IndexOf(listInformacoes[0].Split('|')[3]));
@@ -11546,8 +11368,8 @@ namespace Systax_BuscaLegal
                                 if (!listInformacoes[0].Split('|')[3].Equals("nd"))
                                     ementa = "<" + htmlText.Substring(htmlText.ToLower().IndexOf(listInformacoes[0].Split('|')[3])).Substring(0, htmlText.Substring(htmlText.ToLower().IndexOf(listInformacoes[0].Split('|')[3])).ToLower().IndexOf(listInformacoes[0].Split('|')[4]));
 
-                                publicacao = System.Net.WebUtility.HtmlDecode(ObterStringLimpa(publicacao));
-                                ementa = System.Net.WebUtility.HtmlDecode(ObterStringLimpa(ementa));
+                                publicacao = System.Net.WebUtility.HtmlDecode(new Facilities().ObterStringLimpa(publicacao));
+                                ementa = System.Net.WebUtility.HtmlDecode(new Facilities().ObterStringLimpa(ementa));
 
                                 if (titulo.Trim().Equals(string.Empty))
                                 {
@@ -11556,7 +11378,7 @@ namespace Systax_BuscaLegal
 
                                     listItens = listItens.Select(x => ("<" + x + "</p>").Substring(0, ("<" + x + "</p>").IndexOf("</p>"))).Where(x => !x.Contains("secretaria da fazenda") && !x.Contains("governo do estado do tocantins") && !x.Contains("palácio araguaia") && !x.Contains("governo     do estado do tocantins") && !x.Contains("palácio     araguaia")).ToList();
 
-                                    listItens.ForEach(x => titulo = !System.Net.WebUtility.HtmlDecode(ObterStringLimpa(x)).Trim().Equals(string.Empty) && titulo.Trim().Equals(string.Empty) ? System.Net.WebUtility.HtmlDecode(ObterStringLimpa(x)).Trim() : titulo);
+                                    listItens.ForEach(x => titulo = !System.Net.WebUtility.HtmlDecode(new Facilities().ObterStringLimpa(x)).Trim().Equals(string.Empty) && titulo.Trim().Equals(string.Empty) ? System.Net.WebUtility.HtmlDecode(new Facilities().ObterStringLimpa(x)).Trim() : titulo);
                                 }
 
                                 //if (publicacao.Trim().Equals(string.Empty))
@@ -11566,7 +11388,7 @@ namespace Systax_BuscaLegal
 
                                 //    listItens = listItens.Select(x => "<" + x.Substring(0, x.IndexOf("</p>"))).ToList();
 
-                                //    listItens.ForEach(x => publicacao = !System.Net.WebUtility.HtmlDecode(ObterStringLimpa(x)).Trim().Equals(string.Empty) && publicacao.Trim().Equals(string.Empty) ? System.Net.WebUtility.HtmlDecode(ObterStringLimpa(x)).Trim() : publicacao);
+                                //    listItens.ForEach(x => publicacao = !System.Net.WebUtility.HtmlDecode(new Facilities().ObterStringLimpa(x)).Trim().Equals(string.Empty) && publicacao.Trim().Equals(string.Empty) ? System.Net.WebUtility.HtmlDecode(new Facilities().ObterStringLimpa(x)).Trim() : publicacao);
                                 //}
 
                                 especie = titulo.Substring(0, titulo.IndexOf(" "));
@@ -11627,7 +11449,7 @@ namespace Systax_BuscaLegal
                             ementaInserir.NumeroAto = Regex.Replace(numero, "[^0-9]+", string.Empty);
                             ementaInserir.DataEdicao = edicao;
                             ementaInserir.Texto = descStyle + novaCss + texto;
-                            ementaInserir.Hash = GerarHash(removerCaracterEspecial(ObterStringLimpa(removeTagScript(texto))));
+                            ementaInserir.Hash = new Facilities().GerarHash(new Facilities().removerCaracterEspecial(new Facilities().ObterStringLimpa(new Facilities().removeTagScript(texto))));
                             ementaInserir.IdFila = itemLista_Nivel2.Id;
 
                             ementaInserir.Escopo = "TO";
@@ -11647,9 +11469,9 @@ namespace Systax_BuscaLegal
                         }
                     }
 
-                    string novoNcm = "URL\n";
-                    listaXxx.ForEach(x => novoNcm += x.Replace("\n", "|") + "\n");
-                    File.WriteAllText(@"C:\Temp\NovasNCM.csv", novoNcm);
+                    //string novoNcm = "URL\n";
+                    //listaXxx.ForEach(x => novoNcm += x.Replace("\n", "|") + "\n");
+                    //File.WriteAllText(@"C:\Temp\NovasNCM.csv", novoNcm);
                 }
             }
 
@@ -11663,8 +11485,6 @@ namespace Systax_BuscaLegal
 
             if (modoProcessamento.Equals("f") || modoProcessamento.Equals("u1"))
             {
-                this.Text = "Fonte: Sefaz AL";
-
                 WebBrowser webBrowser = new WebBrowser();
                 webBrowser.ScriptErrorsSuppressed = true;
                 webBrowser.Navigate("http://gcs.sefaz.al.gov.br/sfz-gcs-web/consultarDocumentos.action?codigoCategoria=CAT001");
@@ -11685,38 +11505,292 @@ namespace Systax_BuscaLegal
 
             if (modoProcessamento.Equals("f") || modoProcessamento.Equals("u1"))
             {
-                this.Text = "Fonte: Ministério do Trabalho e Educação";
-
-                List<string> linksSefazMTE = new List<string>() {"http://acesso.mte.gov.br/legislacao/atos-declaratorios.htm"
-                                                                ,"http://acesso.mte.gov.br/legislacao/circulares.htm"
-                                                                ,"http://acesso.mte.gov.br/legislacao/convencoes.htm"
-                                                                ,"http://acesso.mte.gov.br/legislacao/enunciados.htm"
-                                                                ,"http://acesso.mte.gov.br/legislacao/instrucoes-normativas.htm"
-                                                                ,"http://www.mte.gov.br/index.php/seguranca-e-saude-no-trabalho/normatizacao/normas-regulamentadoras"
-                                                                ,"http://acesso.mte.gov.br/legislacao/notas-tecnicas.htm"
-                                                                ,"http://acesso.mte.gov.br/legislacao/portarias.htm"
-                                                                ,"http://acesso.mte.gov.br/legislacao/resolucoes.htm"
-                                                                ,"http://acesso.mte.gov.br/legislacao/resolucoes-administrativas.htm"
-                                                                ,"http://acesso.mte.gov.br/legislacao/resolucoes-normativas.htm"
-                                                                ,"http://acesso.mte.gov.br/legislacao/resolucoes-recomendadas.htm" };
+                List<string> linksSefazMTE = new List<string>() {"http://acesso.mte.gov.br/legislacao/atos-declaratorios.htm|"
+                                                                ,"http://acesso.mte.gov.br/legislacao/circulares.htm|"
+                                                                ,"http://acesso.mte.gov.br/legislacao/convencoes.htm|true"
+                                                                ,"http://acesso.mte.gov.br/legislacao/enunciados.htm|"
+                                                                ,"http://acesso.mte.gov.br/legislacao/instrucoes-normativas.htm|"
+                                                                ,"http://www.mte.gov.br/index.php/seguranca-e-saude-no-trabalho/normatizacao/normas-regulamentadoras|"
+                                                                ,"http://acesso.mte.gov.br/legislacao/notas-tecnicas.htm|"
+                                                                ,"http://acesso.mte.gov.br/legislacao/portarias.htm|"
+                                                                ,"http://acesso.mte.gov.br/legislacao/resolucoes.htm|"
+                                                                ,"http://acesso.mte.gov.br/legislacao/resolucoes-administrativas.htm|"
+                                                                ,"http://acesso.mte.gov.br/legislacao/resolucoes-normativas.htm|"
+                                                                ,"http://acesso.mte.gov.br/legislacao/resolucoes-recomendadas.htm|" };
 
                 foreach (var item in linksSefazMTE)
                 {
-                    this.Text = "Fonte: Ministério do Trabalho e Educação";
+                    string corte = string.Empty;
 
-                    WebBrowser webBrowser = new WebBrowser();
-                    webBrowser.ScriptErrorsSuppressed = true;
-                    webBrowser.Navigate(item);
-                    webBrowser.DocumentCompleted += new WebBrowserDocumentCompletedEventHandler(Wb_DocumentCompleted_MTE);
+                    if (!item.Equals("http://www.mte.gov.br/index.php/seguranca-e-saude-no-trabalho/normatizacao/normas-regulamentadoras|"))
+                        ObterNivelDocumentoMTE(item.Split('|')[0], item.Split('|')[0], item.Split('|')[1].Equals("true"));
+                    else
+                    {
+                        corte = new Facilities().getHtmlPaginaByGet("http://www.mte.gov.br/index.php/seguranca-e-saude-no-trabalho/normatizacao/normas-regulamentadoras", string.Empty).Replace("\"", string.Empty);
 
-                    break;
+                        corte = corte.Substring(corte.IndexOf("<div class=moduletable listaservico")).Substring(0, corte.Substring(corte.IndexOf("<div class=moduletable listaservico")).IndexOf("</div>"));
+
+                        var listItens = Regex.Split(corte, "href=").ToList();
+                        listItens.RemoveAt(0);
+
+                        dynamic objUrl = new ExpandoObject();
+
+                        objUrl.Indexacao = "Ministério do Trabalho e Emprego";
+                        objUrl.Url = item.Substring(0, item.IndexOf("|"));
+
+                        objUrl.Lista_Nivel2 = new List<dynamic>();
+                        dynamic itemListaNvl2;
+                        string urlTratada = string.Empty;
+
+                        listItens.ForEach(delegate(string itemX)
+                        {
+                            urlTratada = itemX.Substring(0, itemX.IndexOf(" "));
+                            itemListaNvl2 = new ExpandoObject();
+
+                            if (urlTratada.Contains(".pdf"))
+                            {
+                                itemListaNvl2.Url = "http://www.mte.gov.br" + urlTratada;
+                                objUrl.Lista_Nivel2.Add(itemListaNvl2);
+                            }
+                            else
+                            {
+                                corte = new Facilities().getHtmlPaginaByGet("http://www.mte.gov.br" + urlTratada, string.Empty).Replace("\"", string.Empty);
+
+                                var listItensU = Regex.Split(corte, "href=").ToList();
+                                listItensU.RemoveAt(0);
+
+                                listItensU.ForEach(delegate(string x)
+                                {
+                                    if (x.Contains(".pdf"))
+                                    {
+                                        itemListaNvl2.Url = "http://www.mte.gov.br" + x.Trim().Substring(0, x.Trim().IndexOf(" "));
+                                        objUrl.Lista_Nivel2.Add(itemListaNvl2);
+                                    }
+                                });
+                            }
+                        });
+
+                        new BuscaLegalDao().AtualizarFontes(new List<dynamic>() { objUrl });
+                    }
                 }
             }
 
             #endregion
 
             #region "Captura Doc's"
-            //Capturar Documentos da DOC
+
+            if ((modoProcessamento.Equals("f") || modoProcessamento.Equals("d")) && siglaFonteProcessamento.Equals("mte"))
+            {
+                if (listaUrl.Count == 0)
+                    listaUrl = new BuscaLegalDao().ObterUrlsParaProcessamento("mte");
+
+                string urlTratada = string.Empty;
+                List<string> itensNaoMapeados = new List<string>();
+
+                foreach (var nivel1_item in listaUrl)
+                {
+                    foreach (var itemLista_Nivel2 in nivel1_item.Lista_Nivel2)
+                    {
+                        try
+                        {
+                            Thread.Sleep(1000);
+
+                            dynamic itemListaVez = new ExpandoObject();
+                            dynamic ementaInserir = new ExpandoObject();
+
+                            ementaInserir.ListaArquivos = new List<ArquivoUpload>();
+
+                            itemListaVez.ListaEmenta = new List<dynamic>();
+                            urlTratada = itemLista_Nivel2.Url.Trim();
+                            itemListaVez.Url = urlTratada;
+                            itemListaVez.IdUrl = itemLista_Nivel2.IdUrl;
+
+                            string numero = string.Empty;
+                            string especie = string.Empty;
+                            string titulo = string.Empty;
+                            string publicacao = string.Empty;
+                            string edicao = string.Empty;
+                            string ementa = string.Empty;
+                            string dadosPdf = string.Empty;
+                            string nomeForRep = string.Empty;
+
+                            if (urlTratada.ToLower().Contains(".pdf"))
+                            {
+                                //TODO: Tratar esses casos
+                                continue;
+
+                                string nomeArq = urlTratada.Substring(urlTratada.LastIndexOf("/") + 1);
+                                nomeForRep = nomeArq.Substring(0, nomeArq.LastIndexOf("."));
+
+                                nomeArq = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory.ToString(), nomeArq);
+
+                                using (WebClient webclient = new WebClient())
+                                {
+                                    webclient.DownloadFile(urlTratada, nomeArq);
+                                }
+
+                                dadosPdf = new Facilities().LeArquivo(nomeArq);
+
+                                byte[] arrayFile = File.ReadAllBytes(nomeArq);
+
+                                ementaInserir.ListaArquivos.Add(new ArquivoUpload() { conteudoArquivo = arrayFile, ExtensaoArquivo = nomeArq.Substring(nomeArq.LastIndexOf(".") + 1), NomeArquivo = urlTratada.Substring(urlTratada.LastIndexOf("/") + 1) });
+
+                                File.Delete(nomeArq);
+
+                                var ListDadosPdf = Regex.Split(dadosPdf, "\n").ToList();
+
+                                foreach (string x in ListDadosPdf)
+                                {
+                                    if (x.Trim() != string.Empty && !x.Trim().Equals(nomeForRep) && x.Trim().Length > 4 && titulo.Equals(string.Empty))
+                                        titulo = x.Trim();
+                                    else if (!titulo.Equals(string.Empty))
+                                        break;
+                                }
+
+                                if (titulo.Trim().Equals(string.Empty)) titulo = nomeForRep;
+
+                                string controle = string.Empty;
+
+                                foreach (string x in ListDadosPdf)
+                                {
+                                    if (controle.Equals(titulo) || x.Trim().Equals(titulo))
+                                    {
+                                        controle = titulo;
+
+                                        if (x.Trim() != string.Empty)
+                                            publicacao += " " + x.Trim();
+                                        else
+                                        {
+                                            if (publicacao.Trim().Equals(titulo) || publicacao.Equals(string.Empty))
+                                                publicacao = string.Empty;
+                                            else
+                                                break;
+                                        }
+                                    }
+                                }
+                            }
+                            else if (urlTratada.ToLower().Contains(".htm"))
+                            {
+                                string arguments = "captura.js " + urlTratada;
+                                string pathResult = @"print";
+
+                                var startInfo = new ProcessStartInfo();
+                                startInfo.RedirectStandardError = true;
+
+                                Process p = new Process();
+
+                                p.StartInfo = startInfo;
+                                p.StartInfo.UseShellExecute = false;
+                                p.StartInfo.WorkingDirectory = AppDomain.CurrentDomain.BaseDirectory.ToString().Substring(0, AppDomain.CurrentDomain.BaseDirectory.ToString().IndexOf("bin"));
+                                p.StartInfo.RedirectStandardOutput = true;
+                                p.StartInfo.CreateNoWindow = false;
+                                p.StartInfo.FileName = p.StartInfo.WorkingDirectory + @"phantomjs.exe";
+                                p.StartInfo.Arguments = arguments + " " + pathResult;
+
+                                p.Start();
+                                string htmlRaiz = p.StandardOutput.ReadToEnd().Replace("\"", string.Empty).Replace("\n", " ").Replace("\t", " ").Replace("\r", " ").Replace("'", string.Empty);
+
+                                p.WaitForExit();
+                                string error = p.StandardError.ReadToEnd();
+
+                                byte[] bytes = Encoding.Default.GetBytes(htmlRaiz);
+                                htmlRaiz = Encoding.UTF8.GetString(bytes);
+
+                                List<string> listaFramework = new List<string>() { htmlRaiz.IndexOf("<div class=content") >= 0 && htmlRaiz.Substring(htmlRaiz.IndexOf("<div class=content")).IndexOf("<h2") >= 0 && htmlRaiz.Substring(htmlRaiz.IndexOf("<div class=content")).IndexOf("<p class=cl_005") >= 0 && htmlRaiz.Substring(htmlRaiz.IndexOf("<div class=content")).IndexOf("<span class=negrito") >= 0 ? htmlRaiz.IndexOf("<div class=content").ToString() + "|<div class=cLumHorDotline|<h2 class=centro|</h2>|<span class=negrito|</span>|<p class=cl_005|</p>" : "-1"
+                                                                                  ,htmlRaiz.IndexOf("<div class=content") >= 0 && htmlRaiz.Substring(htmlRaiz.IndexOf("<div class=content")).IndexOf("<h2") < 0 ? htmlRaiz.IndexOf("<div class=content").ToString() + "|<div class=cLumHorDotline|<h1|</h1>|nd|nd|nd|nd" : "-1"
+                                                                                  ,htmlRaiz.IndexOf("<div class=content") >= 0 && htmlRaiz.Substring(htmlRaiz.IndexOf("<div class=content")).IndexOf("<h2") >= 0 && htmlRaiz.Substring(htmlRaiz.IndexOf("<div class=content")).IndexOf("<span class=negrito") < 0 ? htmlRaiz.IndexOf("<div class=content").ToString() + "|<div class=cLumHorDotline|<h2 class=centro|</h2>|nd|</p>|nd|nd" : "-1"
+                                                                                  ,htmlRaiz.IndexOf("<div class=content") >= 0 && htmlRaiz.Substring(htmlRaiz.IndexOf("<div class=content")).IndexOf("<h2") >= 0 && htmlRaiz.Substring(htmlRaiz.IndexOf("<div class=content")).IndexOf("PUBLICADO") >= 0 ? htmlRaiz.IndexOf("<div class=content").ToString() + "|<div class=cLumHorDotline|<h2 class=centro|</h2>|PUBLICADO|</p>|nd|nd" : "-1"
+                                                                                  ,htmlRaiz.IndexOf("<div class=content") >= 0 && htmlRaiz.Substring(htmlRaiz.IndexOf("<div class=content")).IndexOf("<h2") >= 0 && htmlRaiz.Substring(htmlRaiz.IndexOf("<div class=content")).IndexOf("<span class=negrito") < 0 && htmlRaiz.Substring(htmlRaiz.IndexOf("<div class=content")).IndexOf("(PUBLICADA") >= 0 ? htmlRaiz.IndexOf("<div class=content").ToString() + "|<div class=cLumHorDotline|<h2 class=centro|</h2>|(PUBLICADA|</p>|nd|nd" : "-1"
+                                                                                  ,htmlRaiz.IndexOf("<div class=content") >= 0 && htmlRaiz.Substring(htmlRaiz.IndexOf("<div class=content")).IndexOf("<h2") >= 0 && htmlRaiz.Substring(htmlRaiz.IndexOf("<div class=content")).IndexOf("<span class=negrito") < 0 && htmlRaiz.Substring(htmlRaiz.IndexOf("<div class=content")).IndexOf("Publicado") >= 0 ? htmlRaiz.IndexOf("<div class=content").ToString() + "|<div class=cLumHorDotline|<h2 class=centro|</h2>|Publicado|</p>|nd|nd" : "-1"                                
+
+                                                                                /*,htmlRaiz.IndexOf("<div class=content") >= 0 && htmlRaiz.Substring(htmlRaiz.IndexOf("<div class=content")).IndexOf("") >= 0 && htmlRaiz.Substring(htmlRaiz.IndexOf("<div class=content")).IndexOf("") < 0 ? htmlRaiz.IndexOf("<div class=content").ToString() + "|<div class=cLumHorDotline||||||" : "-1"
+                                                                                  ,htmlRaiz.IndexOf("<div class=content") >= 0 && htmlRaiz.Substring(htmlRaiz.IndexOf("<div class=content")).IndexOf("") >= 0 && htmlRaiz.Substring(htmlRaiz.IndexOf("<div class=content")).IndexOf("") < 0 ? htmlRaiz.IndexOf("<div class=content").ToString() + "|<div class=cLumHorDotline||||||" : "-1"
+                                                                                  ,htmlRaiz.IndexOf("<div class=content") >= 0 && htmlRaiz.Substring(htmlRaiz.IndexOf("<div class=content")).IndexOf("") >= 0 && htmlRaiz.Substring(htmlRaiz.IndexOf("<div class=content")).IndexOf("") < 0 ? htmlRaiz.IndexOf("<div class=content").ToString() + "|<div class=cLumHorDotline||||||" : "-1"
+                                                                                  ,htmlRaiz.IndexOf("<div class=content") >= 0 && htmlRaiz.Substring(htmlRaiz.IndexOf("<div class=content")).IndexOf("") >= 0 && htmlRaiz.Substring(htmlRaiz.IndexOf("<div class=content")).IndexOf("") < 0 ? htmlRaiz.IndexOf("<div class=content").ToString() + "|<div class=cLumHorDotline||||||" : "-1"
+                                                                                  ,htmlRaiz.IndexOf("<div class=content") >= 0 && htmlRaiz.Substring(htmlRaiz.IndexOf("<div class=content")).IndexOf("") >= 0 && htmlRaiz.Substring(htmlRaiz.IndexOf("<div class=content")).IndexOf("") < 0 ? htmlRaiz.IndexOf("<div class=content").ToString() + "|<div class=cLumHorDotline||||||" : "-1"
+                                                                                  ,htmlRaiz.IndexOf("<div class=content") >= 0 && htmlRaiz.Substring(htmlRaiz.IndexOf("<div class=content")).IndexOf("") >= 0 && htmlRaiz.Substring(htmlRaiz.IndexOf("<div class=content")).IndexOf("") < 0 ? htmlRaiz.IndexOf("<div class=content").ToString() + "|<div class=cLumHorDotline||||||" : "-1"
+                                                                                  ,htmlRaiz.IndexOf("<div class=content") >= 0 && htmlRaiz.Substring(htmlRaiz.IndexOf("<div class=content")).IndexOf("") >= 0 && htmlRaiz.Substring(htmlRaiz.IndexOf("<div class=content")).IndexOf("") < 0 ? htmlRaiz.IndexOf("<div class=content").ToString() + "|<div class=cLumHorDotline||||||" : "-1"
+                                                                                  ,htmlRaiz.IndexOf("<div class=content") >= 0 && htmlRaiz.Substring(htmlRaiz.IndexOf("<div class=content")).IndexOf("") >= 0 && htmlRaiz.Substring(htmlRaiz.IndexOf("<div class=content")).IndexOf("") < 0 ? htmlRaiz.IndexOf("<div class=content").ToString() + "|<div class=cLumHorDotline||||||" : "-1"*/};
+
+                                listaFramework.RemoveAll(x => x.Equals("-1"));
+
+                                if (listaFramework.Count == 0)
+                                {
+                                    itensNaoMapeados.Add(urlTratada);
+                                    continue;
+                                }
+
+                                dadosPdf = htmlRaiz.Substring(int.Parse(listaFramework[0].Split('|')[0])).Substring(0, htmlRaiz.Substring(int.Parse(listaFramework[0].Split('|')[0])).IndexOf(listaFramework[0].Split('|')[1]));
+
+                                if (!listaFramework[0].Split('|')[2].Equals("nd"))
+                                    titulo = System.Net.WebUtility.HtmlDecode(new Facilities().ObterStringLimpa(dadosPdf.Substring(dadosPdf.IndexOf(listaFramework[0].Split('|')[2])).Substring(0, dadosPdf.Substring(dadosPdf.IndexOf(listaFramework[0].Split('|')[2])).IndexOf(listaFramework[0].Split('|')[3]))));
+
+                                if (!listaFramework[0].Split('|')[4].Equals("nd"))
+                                    publicacao = System.Net.WebUtility.HtmlDecode(new Facilities().ObterStringLimpa(dadosPdf.Substring(dadosPdf.IndexOf(listaFramework[0].Split('|')[4])).Substring(0, dadosPdf.Substring(dadosPdf.IndexOf(listaFramework[0].Split('|')[4])).IndexOf(listaFramework[0].Split('|')[5]))));
+
+                                if (!listaFramework[0].Split('|')[6].Equals("nd"))
+                                    ementa = System.Net.WebUtility.HtmlDecode(new Facilities().ObterStringLimpa(dadosPdf.Substring(dadosPdf.IndexOf(listaFramework[0].Split('|')[6])).Substring(0, dadosPdf.Substring(dadosPdf.IndexOf(listaFramework[0].Split('|')[6])).IndexOf(listaFramework[0].Split('|')[7]))));
+
+                            }
+                            else if (urlTratada.ToLower().Contains(".doc"))
+                            {
+                                continue;
+                            }
+
+                            /** Outros **/
+                            ementaInserir.DescSigla = string.Empty;
+                            ementaInserir.HasContent = false;
+
+                            /** Arquivo **/
+                            ementaInserir.Tipo = 3;
+                            ementaInserir.Metadado = "{" + string.Format("\"UF\":\"{0}\"", "FED") + "}";
+
+                            if (!titulo.Equals(string.Empty))
+                            {
+                                especie = (titulo + " ").Substring(0, (titulo + " ").IndexOf(" "));
+                                titulo.Replace(".", string.Empty).ToList().ForEach(delegate(char x) { numero += char.IsNumber(x) && (numero.Equals(string.Empty) || !numero.Contains(".")) ? x.ToString() : numero.Equals(string.Empty) ? string.Empty : "."; });
+                            }
+
+                            if (numero.Equals(string.Empty))
+                                numero = "0";
+
+                            /** Default **/
+                            ementaInserir.Publicacao = publicacao.Replace(titulo, string.Empty);
+                            ementaInserir.Sigla = "MTE - Ministério do Trabalho e Emprego";
+                            ementaInserir.Republicacao = string.Empty;
+                            ementaInserir.Ementa = ementa;
+                            ementaInserir.TituloAto = titulo;
+                            ementaInserir.Especie = especie.ToLower();
+                            ementaInserir.NumeroAto = Regex.Replace(numero, "[^0-9]+", string.Empty);
+                            ementaInserir.DataEdicao = edicao;
+                            ementaInserir.Texto = nomeForRep.Equals(string.Empty) ? dadosPdf : dadosPdf.Replace(nomeForRep, string.Empty);
+                            ementaInserir.Hash = new Facilities().GerarHash(new Facilities().removerCaracterEspecial(dadosPdf));
+                            ementaInserir.IdFila = itemLista_Nivel2.Id;
+
+                            ementaInserir.Escopo = "FED";
+                            ementaInserir.IdFila = itemLista_Nivel2.Id;
+
+                            itemListaVez.ListaEmenta.Add(ementaInserir);
+
+                            dynamic itemFonte = new ExpandoObject();
+
+                            itemFonte.Lista_Nivel2 = new List<dynamic>() { itemListaVez };
+                            new BuscaLegalDao().AtualizarFontes(new List<dynamic>() { itemFonte });
+                        }
+                        catch (Exception)
+                        {
+                            itensNaoMapeados.Add("Erro " + urlTratada);
+                            //if (!ex.Message.Equals("O servidor remoto retornou um erro: (404) Não Localizado."))
+                            //    ex = ex;
+                        }
+                    }
+                }
+
+                //string novoNcm = "URL\n";
+                //itensNaoMapeados.ForEach(x => novoNcm += x.Replace("\n", "|") + "\n");
+                //File.WriteAllText(@"C:\Temp\UrlErrosMTE.csv", novoNcm);
+            }
+
             #endregion
 
             #endregion
@@ -11727,14 +11801,12 @@ namespace Systax_BuscaLegal
 
             if (modoProcessamento.Equals("f") || modoProcessamento.Equals("u1"))
             {
-                this.Text = "Fonte: CFC - Conselho Federal de Contabilidade";
-
                 List<string> linksSefazMTE = new List<string>() { "http://www.portalcfc.org.br/legislacao/instrucoes_normativas/" };
 
                 foreach (var item in linksSefazMTE)
                 {
                     break;
-                    string conteudoHtml = getHtmlPaginaByGet(item, string.Empty).Replace("'", string.Empty).Replace("\"", string.Empty);
+                    string conteudoHtml = new Facilities().getHtmlPaginaByGet(item, string.Empty).Replace("'", string.Empty).Replace("\"", string.Empty);
                     conteudoHtml = conteudoHtml.Substring(conteudoHtml.ToLower().IndexOf("<h3>instruções normativas</h3>"))
                                                .Substring(0, conteudoHtml.Substring(conteudoHtml.ToLower().IndexOf("<h3>instruções normativas</h3>")).IndexOf("<div class=section-third"));
 
@@ -11805,7 +11877,7 @@ namespace Systax_BuscaLegal
                                 webclient.DownloadFile(urlTratada, nomeArq);
                             }
 
-                            string dadosPdf = LeArquivo(nomeArq);
+                            string dadosPdf = new Facilities().LeArquivo(nomeArq);
 
                             byte[] arrayFile = File.ReadAllBytes(nomeArq);
 
@@ -11877,7 +11949,7 @@ namespace Systax_BuscaLegal
                             ementaInserir.NumeroAto = Regex.Replace(numero, "[^0-9]+", string.Empty);
                             ementaInserir.DataEdicao = edicao;
                             ementaInserir.Texto = dadosPdf.Replace(nomeForRep, string.Empty);
-                            ementaInserir.Hash = GerarHash(removerCaracterEspecial(dadosPdf));
+                            ementaInserir.Hash = new Facilities().GerarHash(new Facilities().removerCaracterEspecial(dadosPdf));
                             ementaInserir.IdFila = itemLista_Nivel2.Id;
 
                             ementaInserir.Escopo = "FED";
@@ -11891,10 +11963,8 @@ namespace Systax_BuscaLegal
 
                             new BuscaLegalDao().AtualizarFontes(new List<dynamic>() { itemFonte });
                         }
-                        catch (Exception ex)
+                        catch (Exception)
                         {
-                            //if (!ex.Message.Equals("O servidor remoto retornou um erro: (404) Não Localizado."))
-                            //    ex = ex;
                         }
                     }
                 }
@@ -11903,6 +11973,336 @@ namespace Systax_BuscaLegal
             #endregion
 
             #endregion
+
+            #region "CARF - Conselho Administrativo de Recursos Fiscais"
+
+            #region "Captura URL's"
+
+            if (modoProcessamento.Equals("f") || modoProcessamento.Equals("u1"))
+            {
+                objUrll = new ExpandoObject();
+
+                objUrll.Indexacao = "CARF - Conselho Administrativo de Recursos Fiscais";
+                objUrll.Url = "https://carf.fazenda.gov.br/sincon/public/pages/ConsultarJurisprudencia/consultarJurisprudenciaCarf.jsf";
+
+                objUrll.Lista_Nivel2 = new List<dynamic>();
+
+                objItenUrl = new ExpandoObject();
+                objItenUrl.Url = "https://carf.fazenda.gov.br/sincon/public/pages/ConsultarJurisprudencia/consultarJurisprudenciaCarf.jsf";
+                objUrll.Lista_Nivel2.Add(objItenUrl);
+
+                new BuscaLegalDao().AtualizarFontes(new List<dynamic>() { objUrll });
+            }
+
+            #endregion
+
+            #region "Captura DOC's"
+
+            if ((modoProcessamento.Equals("f") || modoProcessamento.Equals("d")) && siglaFonteProcessamento.Equals("carf"))
+            {
+                if (listaUrl.Count == 0)
+                    listaUrl = new BuscaLegalDao().ObterUrlsParaProcessamento("carf");
+
+                string urlTratada = string.Empty;
+
+                foreach (var nivel1_item in listaUrl)
+                {
+                    foreach (var itemLista_Nivel2 in nivel1_item.Lista_Nivel2)
+                    {
+                        try
+                        {
+                            this.webBrowserGERAL = new WebBrowser();
+                            this.webBrowserGERAL.ScriptErrorsSuppressed = true;
+                            this.webBrowserGERAL.Navigate(itemLista_Nivel2.Url.Trim());
+                            this.webBrowserGERAL.DocumentCompleted += new WebBrowserDocumentCompletedEventHandler(Wb_DocumentCompleted_CARF);
+                        }
+                        catch (Exception)
+                        {
+                        }
+                    }
+                }
+            }
+
+            #endregion
+
+            #endregion
+
+            #region "Caixa Econômica Federal (CEF)"
+
+            #region"Captura URL's"
+
+            if (modoProcessamento.Equals("f") || modoProcessamento.Equals("u1"))
+            {
+                ICollection<string> list = new List<string>() { "Instrução Normativa", "Circular CAIXA", "Resolução CCFGTS" };
+
+                foreach (var item in list)
+                {
+                    var webBroserCEF = new WebBrowser();
+
+                    webBroserCEF.ScriptErrorsSuppressed = true;
+                    webBroserCEF.DocumentCompleted += Wb_DocumentCompleted_CEF;
+                    webBroserCEF.Navigate("https://webp.caixa.gov.br/Portal/Legislacao/legislacao.asp?Criterio=" + item);
+                }
+            }
+
+            #endregion
+
+            #region"Captura DOC's"
+
+            if ((modoProcessamento.Equals("f") || modoProcessamento.Equals("d")) && siglaFonteProcessamento.Equals("cef"))
+            {
+                if (listaUrl.Count == 0)
+                    listaUrl = new BuscaLegalDao().ObterUrlsParaProcessamento("cef");
+
+                new Facilities().ProcessarDocsCEF(listaUrl);
+            }
+
+            #endregion
+
+            #endregion
+
+            #region "Nota Fiscal Eletrônica (NFE)"
+
+            #region"Captura URL's"
+
+            if (modoProcessamento.Equals("f") || modoProcessamento.Equals("u1"))
+            {
+                string htmlURl = new Facilities().getHtmlPaginaByGet("https://www.nfe.fazenda.gov.br/portal/listaConteudo.aspx?tipoConteudo=tW+YMyk/50s=", "default");
+
+                htmlURl = htmlURl.Replace("\"", string.Empty).Replace("\n", " ").Replace("\r", " ").Replace("\t", " ");
+
+                var itensPai = Regex.Split(htmlURl, "<div class=indentacaoNormal").ToList();
+                itensPai.RemoveAt(0);
+
+                objUrll = new ExpandoObject();
+
+                objUrll.Indexacao = "Nota Fiscal Eletrônica (NFE)";
+                objUrll.Url = "https://www.nfe.fazenda.gov.br/portal/listaConteudo.aspx?tipoConteudo=tW+YMyk/50s=";
+                objUrll.Lista_Nivel2 = new List<dynamic>();
+
+                itensPai.ForEach(delegate(string pai)
+                {
+                    var itensFilho = Regex.Split(pai, "<p>").ToList();
+                    itensFilho.RemoveAt(0);
+
+                    itensFilho.ForEach(delegate(string filho)
+                    {
+                        objItenUrl = new ExpandoObject();
+
+                        if (filho.Contains("</a>"))
+                        {
+                            objItenUrl.Url = "https://www.nfe.fazenda.gov.br/portal/" + filho.Substring(filho.IndexOf("exibirArquivo.aspx")).Substring(0, filho.Substring(filho.IndexOf("exibirArquivo.aspx")).IndexOf(">")) + "|" +
+                                             new Facilities().ObterStringLimpa(filho.Substring(0, filho.IndexOf("</a>"))) + "|" +
+                                             new Facilities().ObterStringLimpa(filho.Substring(filho.IndexOf("</a>") + 4));
+
+                            objUrll.Lista_Nivel2.Add(objItenUrl);
+                        }
+                    });
+                });
+
+                new BuscaLegalDao().AtualizarFontes(new List<dynamic>() { objUrll });
+            }
+
+            #endregion
+
+            #region"Captura DOC's"
+
+            if ((modoProcessamento.Equals("f") || modoProcessamento.Equals("d")) && siglaFonteProcessamento.Equals("nfe"))
+            {
+                if (listaUrl.Count == 0)
+                    listaUrl = new BuscaLegalDao().ObterUrlsParaProcessamento("nfe");
+
+                new Facilities().ProcessarDocsNFE(listaUrl);
+            }
+
+            #endregion
+
+            #endregion
+
+            #region "Ministério da Fazenda (MF)"
+
+            #region"Captura URL's"
+
+            if (modoProcessamento.Equals("f") || modoProcessamento.Equals("u1"))
+            {
+                List<string> urlList = new List<string>(){"http://www.fazenda.gov.br/acesso-a-informacao/institucional/legislacao/portarias-ministerial/{0}"
+                                                         ,"http://www.fazenda.gov.br/acesso-a-informacao/institucional/legislacao/portarias-interministeriais/{0}"};
+
+                int limiteAno = DateTime.Now.Year;
+                int anoInicio = 2000;
+
+                foreach (string itemMF in urlList)
+                {
+                    objUrll = new ExpandoObject();
+
+                    objUrll.Indexacao = "Ministério da Fazenda (MF)";
+                    objUrll.Url = itemMF.Substring(0, itemMF.IndexOf("{"));
+                    objUrll.Lista_Nivel2 = new List<dynamic>();
+
+                    while (limiteAno >= anoInicio)
+                    {
+                        string htmlURl = new Facilities().getHtmlPaginaByGet(string.Format(itemMF, anoInicio.ToString()), string.Empty);
+
+                        htmlURl = htmlURl.Replace("\"", string.Empty).Replace("\n", " ").Replace("\r", " ").Replace("\t", " ");
+
+                        htmlURl = htmlURl.Substring(htmlURl.IndexOf("<table class=listing")).Substring(0, htmlURl.Substring(htmlURl.IndexOf("<table class=listing")).IndexOf("<div id=viewlet-below-content"));
+
+                        var itensPai = Regex.Split(htmlURl, "<tr>").ToList();
+
+                        itensPai.RemoveAt(0);
+
+                        itensPai.ForEach(delegate(string filho)
+                        {
+                            objItenUrl = new ExpandoObject();
+
+                            if (filho.Contains("</a>"))
+                            {
+                                string quebra = filho.Substring(filho.IndexOf("</a>") + 4).Contains("</a>") ? filho.Substring(filho.IndexOf("</a>") + 4) : filho;
+
+                                objItenUrl.Url = quebra.Substring(quebra.IndexOf("href=") + 5).Substring(0, quebra.Substring(quebra.IndexOf("href=") + 5).IndexOf(" ")) + "|";
+                                objItenUrl.Url += new Facilities().ObterStringLimpa(quebra.Substring(0, quebra.IndexOf("</a>"))) + "|";
+                                objItenUrl.Url += new Facilities().ObterStringLimpa(quebra.Substring(quebra.IndexOf("<dl>")).Substring(0, quebra.Substring(quebra.IndexOf("<dl>")).IndexOf("</dl>")));
+
+                                objUrll.Lista_Nivel2.Add(objItenUrl);
+                            }
+                        });
+
+                        anoInicio++;
+                    }
+
+                    new BuscaLegalDao().AtualizarFontes(new List<dynamic>() { objUrll });
+                }
+            }
+
+            #endregion
+
+            #region"Captura DOC's"
+
+            if ((modoProcessamento.Equals("f") || modoProcessamento.Equals("d")) && siglaFonteProcessamento.Equals("mfz"))
+            {
+                if (listaUrl.Count == 0)
+                    listaUrl = new BuscaLegalDao().ObterUrlsParaProcessamento("mfz");
+
+                new Facilities().ProcessarDocsMFZ(listaUrl);
+            }
+
+            #endregion
+
+            #endregion
+
+            #region "Ministério da Previdência Social"
+
+            #region"Captura URL's"
+
+            if (modoProcessamento.Equals("f") || modoProcessamento.Equals("u1"))
+            {
+                List<string> urlList = new List<string>() { "http://sislex.previdencia.gov.br/escolhanew3_2.asp?texto=&origem=inferiorxml.asp&xnaveg=0&traco=0&auxnumero=&norma=905&proced=1&numero=&ano=&pesquisa=Pesquisar"
+                                                           ,"http://sislex.previdencia.gov.br/escolhanew3_2.asp?texto=&origem=inferiorxml.asp&xnaveg=0&traco=0&auxnumero=&norma=906&proced=1&numero=&ano=&pesquisa=Pesquisar"
+                                                           ,"http://sislex.previdencia.gov.br/escolhanew3_2.asp?texto=&origem=inferiorxml.asp&xnaveg=0&traco=0&auxnumero=&norma=56&proced=1&numero=&ano=&pesquisa=Pesquisar"
+                                                           ,"http://sislex.previdencia.gov.br/escolhanew3_2.asp?texto=&origem=inferiorxml.asp&xnaveg=0&traco=0&auxnumero=&norma=64&proced=1&numero=&ano=&pesquisa=Pesquisar"
+                                                           ,"http://sislex.previdencia.gov.br/escolhanew3_2.asp?texto=&origem=inferiorxml.asp&xnaveg=0&traco=0&auxnumero=&norma=65&proced=1&numero=&ano=&pesquisa=Pesquisar"};
+
+                foreach (string item in urlList)
+                {
+                    WebBrowser webMPS = new WebBrowser();
+
+                    webMPS.ScriptErrorsSuppressed = true;
+                    webMPS.DocumentCompleted += Wb_DocumentCompleted_MPS;
+                    webMPS.Navigate(item);
+                }
+            }
+
+            #endregion
+
+            #region "Captura DOC's"
+            //Incluir a captura do doc.
+            #endregion
+
+            #endregion
+        }
+
+        public void SimulacaoClick(Object source, System.Timers.ElapsedEventArgs e)
+        {
+            int centerX = 890;
+            int centerY = 660;
+
+            Cursor.Position = new Point(centerX, centerY);
+
+            mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0);//make left button down
+            mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, 0);//make left button up
+        }
+
+        private void ObterNivelDocumentoMTE(string urlAtual, string raiz, bool save = false)
+        {
+            try
+            {
+                List<string> listExcluidos = new List<string>() { "http://acesso.mte.gov.br/seg_desemp/circulares-seguro-desemprego.htm"
+                                                                 ,"http://www.bcb.gov.br/?NOTASNOR"
+                                                                 ,"http://www.susep.gov.br/principal.asp"
+                                                                 ,"http://www1.caixa.gov.br/download/asp/download.asp?scateg=59"};
+
+                string arguments = "captura.js " + urlAtual;
+                string pathResult = @"print";
+
+                var startInfo = new ProcessStartInfo();
+                startInfo.RedirectStandardError = true;
+
+                Process p = new Process();
+
+                p.StartInfo = startInfo;
+                p.StartInfo.UseShellExecute = false;
+                p.StartInfo.WorkingDirectory = AppDomain.CurrentDomain.BaseDirectory.ToString().Substring(0, AppDomain.CurrentDomain.BaseDirectory.ToString().IndexOf("bin"));
+                p.StartInfo.RedirectStandardOutput = true;
+                p.StartInfo.CreateNoWindow = false;
+                p.StartInfo.FileName = p.StartInfo.WorkingDirectory + @"phantomjs.exe";
+                p.StartInfo.Arguments = arguments + " " + pathResult;
+
+                p.Start();
+                string retornoHtml = p.StandardOutput.ReadToEnd().Replace("\"", string.Empty).Replace("\n", " ").Replace("\t", " ").Replace("\r", " ").Replace("'", string.Empty);
+
+                p.WaitForExit();
+                string error = p.StandardError.ReadToEnd();
+
+                byte[] bytes = Encoding.Default.GetBytes(retornoHtml);
+                retornoHtml = Encoding.UTF8.GetString(bytes);
+
+                retornoHtml = retornoHtml.Substring(retornoHtml.IndexOf("lumIIdFF8080812DA8CC7A012DBF98FAB873CE")).Substring(0, retornoHtml.Substring(retornoHtml.IndexOf("lumIIdFF8080812DA8CC7A012DBF98FAB873CE")).IndexOf("<script type=text/javascript"));
+
+                var listResult = Regex.Split(retornoHtml, "class=negrito cl_001").ToList();
+
+                listResult.RemoveAt(0);
+
+                listResult.ForEach(delegate(string itemX)
+                {
+                    if (!listExcluidos.Exists(x => itemX.Contains(x)))
+                    {
+                        string urlLimpa = "http://acesso.mte.gov.br" + itemX.Trim().Substring(itemX.Trim().IndexOf("href=..") + 7).Substring(0, itemX.Trim().Substring(itemX.Trim().IndexOf("href=..") + 7).IndexOf(">"));
+
+                        urlLimpa = urlLimpa.ToLower().IndexOf(".pdf") >= 0 ? urlLimpa.Substring(0, urlLimpa.ToLower().IndexOf(".pdf") + 4) : urlLimpa;
+
+                        if (itemX.ToLower().Contains(".pdf") || save)
+                        {
+                            dynamic objUrl = new ExpandoObject();
+
+                            objUrl.Indexacao = "Ministério do Trabalho e Emprego";
+                            objUrl.Url = raiz;
+
+                            objUrl.Lista_Nivel2 = new List<dynamic>();
+                            dynamic itemListaNvl2 = new ExpandoObject();
+
+                            itemListaNvl2.Url = urlLimpa.Replace("Ã“", "Ó").Replace("Ã©", "é").Replace("Âº", "º").Replace("Ã³", "ó");
+                            objUrl.Lista_Nivel2.Add(itemListaNvl2);
+
+                            new BuscaLegalDao().AtualizarFontes(new List<dynamic>() { objUrl });
+                        }
+                        else
+                            ObterNivelDocumentoMTE(urlLimpa.Replace("Ã“", "Ó"), raiz, true);
+                    }
+                });
+            }
+            catch (Exception)
+            {
+            }
         }
 
         private void InserirDocumentoSefazTo(string urlTo, string recursivo = "")
@@ -11921,7 +12321,7 @@ namespace Systax_BuscaLegal
 
                 List<string> listaUrlIndex;
 
-                string htmlListUrl = getHtmlPaginaByGet(urlTo, string.Empty).Replace("\"", string.Empty).Replace("\n", " ").Replace("\t", " ").Replace("\r", " ");
+                string htmlListUrl = new Facilities().getHtmlPaginaByGet(urlTo, string.Empty).Replace("\"", string.Empty).Replace("\n", " ").Replace("\t", " ").Replace("\r", " ");
 
                 listaUrlIndex = Regex.Split(htmlListUrl, "href=").ToList().Select(x => urlTo.Substring(0, urlTo.LastIndexOf("/") + 1) + (x.Contains("seta_baixo.gif") || recursivo.Equals("r") ? "d|" : string.Empty) + x.Substring(0, x.IndexOf(">"))).ToList();
                 listaUrlIndex = listaUrlIndex.Select(x => x.Substring(0, (x + " ").IndexOf(" "))).ToList();
@@ -11972,7 +12372,7 @@ namespace Systax_BuscaLegal
 
                 List<string> listaUrlIndex;
 
-                string htmlListUrl = getHtmlPaginaByGet(urlSe, "default").Replace("\"", string.Empty).Replace("\n", " ").Replace("\t", " ").Replace("\r", " ");
+                string htmlListUrl = new Facilities().getHtmlPaginaByGet(urlSe, "default").Replace("\"", string.Empty).Replace("\n", " ").Replace("\t", " ").Replace("\r", " ");
 
                 htmlListUrl = htmlListUrl.Substring(htmlListUrl.IndexOf("<hr>"));
 
@@ -12013,7 +12413,7 @@ namespace Systax_BuscaLegal
 
                 List<dynamic> listParaTratamento = new List<dynamic>();
 
-                string htmlListUrl = getHtmlPaginaByGet(url, "default").Replace("\"", string.Empty).Replace("\n", " ").Replace("\t", " ").Replace("\r", " ");
+                string htmlListUrl = new Facilities().getHtmlPaginaByGet(url, "default").Replace("\"", string.Empty).Replace("\n", " ").Replace("\t", " ").Replace("\r", " ");
 
                 htmlListUrl = htmlListUrl.Substring(htmlListUrl.IndexOf("<!-- Conteudo -->")).Substring(0, htmlListUrl.Substring(htmlListUrl.IndexOf("<!-- Conteudo -->")).IndexOf("<!-- borda inferior -->"));
 
@@ -12120,7 +12520,7 @@ namespace Systax_BuscaLegal
         {
             Thread.Sleep(2000);
 
-            string resposta = getHtmlPaginaByGet(url, "default").Replace("\"", string.Empty).ToLower();
+            string resposta = new Facilities().getHtmlPaginaByGet(url, "default").Replace("\"", string.Empty).ToLower();
 
             var listRetorn = new List<string>();
 
@@ -12172,7 +12572,7 @@ namespace Systax_BuscaLegal
 
                 string resposta = string.Empty;
 
-                resposta = getHtmlPaginaByGet(url.Replace("|N", string.Empty).Replace("|s", string.Empty).Replace("|2s", string.Empty), "default").Replace("\"", string.Empty);
+                resposta = new Facilities().getHtmlPaginaByGet(url.Replace("|N", string.Empty).Replace("|s", string.Empty).Replace("|2s", string.Empty), "default").Replace("\"", string.Empty);
 
                 listKeys.Add(resposta.ToLower().IndexOf("<table border=0 cellpadding=2 cellspacing=0").ToString() + "|</table>");
                 listKeys.Add(resposta.ToLower().IndexOf("<div id=conteudosefaz").ToString() + "|</div>");
@@ -12269,235 +12669,6 @@ namespace Systax_BuscaLegal
             }
 
             return listRetorn;
-        }
-
-        private string getHtmlPaginaByGet(string url, string encode, string cookie = "", string language = "")
-        {
-            string resposta = string.Empty;
-
-            try
-            {
-                WebRequest reqNivel2_ = WebRequest.Create(url);
-
-                if (!string.IsNullOrEmpty(cookie))
-                    reqNivel2_.Headers.Add("Cookie", cookie);
-
-                if (!string.IsNullOrEmpty(language))
-                    reqNivel2_.Headers.Add("Accept-Language", "pt-BR,pt;q=0.8,en-US;q=0.6,en;q=0.4");
-
-                WebResponse resNivel2_ = reqNivel2_.GetResponse();
-                Stream dataStreamNivel2_ = resNivel2_.GetResponseStream();
-
-                StreamReader readerNivel2_;
-
-                if (encode.Equals("default"))
-                    readerNivel2_ = new StreamReader(dataStreamNivel2_, Encoding.Default);
-                else
-                    readerNivel2_ = new StreamReader(dataStreamNivel2_);
-
-                resposta = readerNivel2_.ReadToEnd();
-            }
-            catch (Exception ex)
-            {
-                resposta = "Erro ao processar página, detalhes: " + ex.Message;
-            }
-
-            return resposta;
-        }
-
-        private string obterDadosColection(string texto, string dado)
-        {
-            foreach (string item in Regex.Split(texto.ToLower(), "class=msonormal").ToList())
-            {
-                if (item.Contains(dado))
-                {
-                    return "<" + item;
-                }
-            }
-
-            return string.Empty;
-        }
-
-        private string obterEmentaTexto(string texto)
-        {
-            string textoRetorno = string.Empty;
-
-            var listaEmenta = Regex.Split(texto.ToLower(), "class=resoluoassunto").ToList();
-
-            listaEmenta.RemoveAt(0);
-
-            listaEmenta.ForEach(x => textoRetorno += "<" + x.Substring(0, x.IndexOf("</p>")));
-
-            return textoRetorno;
-        }
-
-        private int obterPontoCorte(string titulo)
-        {
-            int ponto = 0;
-
-            foreach (char x in titulo.ToList())
-            {
-                if (char.IsNumber(x))
-                    return ponto;
-                ponto++;
-            }
-
-            return ponto;
-        }
-
-        private dynamic obterEstruturaProcessarUrl_RfbLeg(string url)
-        {
-            dynamic objUrll = new ExpandoObject();
-
-            try
-            {
-                WebRequest req = WebRequest.Create(url);
-                WebResponse res = req.GetResponse();
-                Stream dataStream = res.GetResponseStream();
-                StreamReader reader = new StreamReader(dataStream);
-
-                dynamic objItenUrl;
-
-                objUrll.Indexacao = "Receita Federal";
-                objUrll.Url = url;
-                objUrll.Lista_Nivel2 = new List<dynamic>();
-
-                string resposta = reader.ReadToEnd();
-
-                resposta = System.Net.WebUtility.HtmlDecode(resposta.Replace("\n", string.Empty).Replace("\r", string.Empty).Replace("\t", string.Empty));
-
-                var listaMPs = Regex.Split(resposta.Substring(resposta.IndexOf("invisible")).Replace("\"", string.Empty), "<tr>").ToList().FindAll(x => x.Contains("external-link"));
-
-                listaMPs.RemoveAt(listaMPs.Count - 1);
-
-                listaMPs.ForEach(delegate(string x)
-                {
-                    objItenUrl = new ExpandoObject();
-
-                    objItenUrl.Url = x.Substring(x.IndexOf("href=") + 5, x.IndexOf("target") - (x.IndexOf("href=") + 5));
-
-                    if (!objItenUrl.Url.Contains("www4"))
-                        objUrll.Lista_Nivel2.Add(objItenUrl);
-                });
-            }
-            catch (Exception ex)
-            {
-            }
-
-            return objUrll;
-        }
-
-        public string removerCaracterEspecial(string texto)
-        {
-            string antigoTexto = "ÄÅÁÂÀÃäáâàãÉÊËÈéêëèÍÎÏÌíîïìÖÓÔÒÕöóôòõÜÚÛüúûùÇç";
-            string novoTexto = "AAAAAAaaaaaEEEEeeeeIIIIiiiiOOOOOoooooUUUuuuuCc";
-
-            for (int i = 0; i < antigoTexto.Length; i++)
-            {
-                texto = texto.Replace(antigoTexto[i].ToString(), novoTexto[i].ToString());
-            }
-            return texto;
-        }
-
-        private string GerarHash(string valor)
-        {
-            using (MD5 hash = MD5.Create())
-            {
-                // Convert the input string to a byte array and compute the hash.
-                byte[] data = hash.ComputeHash(Encoding.UTF8.GetBytes(valor));
-
-                // Create a new Stringbuilder to collect the bytes
-                // and create a string.
-                StringBuilder sBuilder = new StringBuilder();
-
-                // Loop through each byte of the hashed data
-                // and format each one as a hexadecimal string.
-                for (int i = 0; i < data.Length; i++)
-                {
-                    sBuilder.Append(data[i].ToString("x2"));
-                }
-
-                // Return the hexadecimal string.
-                return sBuilder.ToString();
-            }
-        }
-
-        public string LeArquivo(string fileName)
-        {
-            var text = new StringBuilder();
-
-            // The PdfReader object implements IDisposable.Dispose, so you can
-            // wrap it in the using keyword to automatically dispose of it
-            using (var pdfReader = new PdfReader(fileName))
-            {
-                // Loop through each page of the document
-                for (var page = 1; page <= pdfReader.NumberOfPages; page++)
-                {
-                    ITextExtractionStrategy strategy = new SimpleTextExtractionStrategy();
-
-                    var currentText = PdfTextExtractor.GetTextFromPage(
-                        pdfReader,
-                        page,
-                        strategy);
-
-                    currentText =
-                        Encoding.UTF8.GetString(Encoding.Convert(
-                            Encoding.Default,
-                            Encoding.UTF8,
-                            Encoding.Default.GetBytes(currentText)));
-
-                    text.Append(currentText);
-                }
-            }
-
-            return text.ToString();
-        }
-
-        private string ObterStringLimpa(string y)
-        {
-            bool key = false;
-            string txtNovo = " ";
-
-            y.ToList().ForEach(delegate(char x) { key = x.ToString().Equals("<") || (key && !x.ToString().Equals(">")); txtNovo += !key && !x.ToString().Equals(">") ? x.ToString() : string.Empty; });
-
-            return Regex.Replace(txtNovo.Trim(), @"\s+", " ");
-        }
-
-        private string ObterStringLimpa(string y, string corte)
-        {
-            var listItens = Regex.Split(y, corte).ToList();
-
-            bool key;
-            string txtNovo = string.Empty;
-
-            foreach (var item in listItens)
-            {
-                key = false;
-                txtNovo = " ";
-
-                item.ToList().ForEach(delegate(char x) { key = x.ToString().Equals("<") || (key && !x.ToString().Equals(">")); txtNovo += !key && !x.ToString().Equals(">") ? x.ToString() : string.Empty; });
-
-                if (!txtNovo.Trim().Equals(string.Empty)) break;
-            }
-
-            return Regex.Replace(txtNovo.Trim(), @"\s+", " ");
-        }
-
-        private string removeTagScript(string texto)
-        {
-            int indexScript = 0;
-
-            while (true)
-            {
-                indexScript = texto.IndexOf("<script");
-
-                if (indexScript > 0)
-                    texto = texto.Remove(indexScript, (texto.IndexOf("</script>") + 9) - indexScript);
-                else
-                    break;
-            }
-
-            return texto;
         }
     }
 }
