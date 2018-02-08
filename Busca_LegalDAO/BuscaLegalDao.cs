@@ -161,11 +161,11 @@ namespace Busca_LegalDAO
 
                 foreach (var itemEmenta in objListInsert.OrderBy(x => x.Tipo))
                 {
-
                     try
                     {
                         this.objComando.Parameters.Clear();
 
+                        /*
                         this.objComando.Parameters.Add("pTitulo", objListInsert.Find(x => x.Tipo == 3).TituloAto);
                         this.objComando.Parameters.Add("pDataPublicacao", objListInsert.Find(x => x.Tipo == 3).Publicacao);
                         this.objComando.Parameters.Add("pdatarepublicacao", objListInsert.Find(x => x.Tipo == 3).Republicacao);
@@ -184,6 +184,26 @@ namespace Busca_LegalDAO
                         this.objComando.Parameters.Add("pNumeroAto", objListInsert.Find(x => x.Tipo == 3).NumeroAto);
                         this.objComando.Parameters.Add("pDataEdicao", objListInsert.Find(x => x.Tipo == 3).DataEdicao);
                         this.objComando.Parameters.Add("pIdFila", objListInsert.Find(x => x.Tipo == 3).IdFila);
+                         */
+
+                        this.objComando.Parameters.Add("pTitulo", itemEmenta.TituloAto);
+                        this.objComando.Parameters.Add("pDataPublicacao", itemEmenta.Publicacao);
+                        this.objComando.Parameters.Add("pdatarepublicacao", itemEmenta.Republicacao);
+                        this.objComando.Parameters.Add("pEmenta", itemEmenta.Ementa);
+                        this.objComando.Parameters.Add("pTexto", itemEmenta.Texto);
+                        this.objComando.Parameters.Add("pFlagVisao", itemEmenta.Tipo.ToString());
+                        this.objComando.Parameters.Add("pIdPai", idPai);
+                        this.objComando.Parameters.Add("pIdUrl", dadosEmenta.IdUrl);
+                        this.objComando.Parameters.Add("pEspecie", itemEmenta.Especie);
+                        this.objComando.Parameters.Add("pUf", itemEmenta.Escopo);
+                        this.objComando.Parameters.Add("pDtAtualizacao", DateTime.Now.ToString("yyyy-MM-dd"));
+                        this.objComando.Parameters.Add("pMetadado", itemEmenta.Metadado);
+                        this.objComando.Parameters.Add("pHash", itemEmenta.Hash);
+
+                        this.objComando.Parameters.Add("pSiglaOrgao", !itemEmenta.Sigla.Equals(string.Empty) ? string.Format("{0} - {1}", itemEmenta.Sigla, itemEmenta.DescSigla) : DBNull.Value);
+                        this.objComando.Parameters.Add("pNumeroAto", itemEmenta.NumeroAto);
+                        this.objComando.Parameters.Add("pDataEdicao", itemEmenta.DataEdicao);
+                        this.objComando.Parameters.Add("pIdFila", itemEmenta.IdFila);
 
                         if (itemEmenta.HasContent)
                         {

@@ -18,15 +18,17 @@ namespace Systax_BuscaLegal
 {
     public partial class Form1 : Form
     {
+        WebBrowser webBrowserADE;
         WebBrowser webBrowserGERAL;
         WebBrowser webBrowserSefazRR;
-        DateTime dataCorrente = new DateTime(2013, 10, 03);
+
         int idUrl = 0;
         int tentativa = 0;
         int countSefaz = 1;
         int countCFC = 1;
         bool isFirst = true;
         int PgNumber;
+        string atual = string.Empty;
         List<string> ItenCapturar;
         //bool pontoAcesso = false;
         List<dynamic> listNavegacao = new List<dynamic>();
@@ -42,149 +44,160 @@ namespace Systax_BuscaLegal
         public Form1()
         {
             //new BuscaLegalDao().ProcessaExtrecaoArquivos();
-            //Facilities.FixBrowserVersion();
+            Facilities.FixBrowserVersion();
 
             InitializeComponent();
             ProcessarBusca();
+
+            //new Facilities().CorrecaoData();
         }
 
-        private void webBrowser1_DocumentCompleted(object sender, WebBrowserDocumentCompletedEventArgs e)
+        private void Wb_Assitente_Wb_Ade(object sender, WebBrowserDocumentCompletedEventArgs e)
         {
-            Thread.Sleep(2000);
-
             try
             {
-                string conteudo = string.Empty;
+                do { } while (((WebBrowser)sender).ReadyState == WebBrowserReadyState.Loading);
 
-                do
-                {
-                    // Do nothing while we wait for the page to loadf
-                }
-                while (webBrowserGERAL.ReadyState == WebBrowserReadyState.Loading);
+                var webAssistAde = ((WebBrowser)sender);
 
-                conteudo = webBrowserGERAL.DocumentText;
-
-                if (conteudo.Contains("Ementas não encontradas. Refine os critérios de pesquisa."))
-                {
-                    this.BuscarNovaPage();
-                }
+                if (webBrowserADE.Document.GetElementById("formPrincipal:list_data").OuterHtml.Contains("Ementas não encontradas. Refine os critérios de pesquisa.") ||
+                        webBrowserADE.Document.GetElementById("formPrincipal:list_data").OuterHtml.Equals(atual))
+                    webAssistAde.Refresh(WebBrowserRefreshOption.Completely);
                 else
                 {
+                    atual = webBrowserADE.Document.GetElementById("formPrincipal:list_data").OuterHtml;
+
+                    string conteudo = webBrowserADE.DocumentText;
+
                     int indexInicio = conteudo.IndexOf("Total de atos localizados");
 
-                    if (indexInicio < 0)
-                        ProcessarBusca();
+                    /*Captura CSS*/
+                    var listaCss = Regex.Split(conteudo, "<link").ToList();
 
-                    else
+                    listaCss.RemoveAt(0);
+
+                    var listaCssTratada = new List<string>();
+
+                    var urlFull = webBrowserADE.Url.ToString().Replace("https", "http");
+
+                    urlFull = urlFull.Substring(0, urlFull.IndexOf(".jsf"));
+
+                    listaCss.ForEach(delegate(string x)
                     {
-                        /*Captura CSS*/
-                        var listaCss = Regex.Split(conteudo, "<link").ToList();
+                        string novaCss = string.Format("{0}{1}", "<link", x.Substring(0, x.IndexOf(">") + 1));
 
-                        listaCss.RemoveAt(0);
+                        novaCss = novaCss.Insert(novaCss.IndexOf("href=") + 5, ("http://" + webBrowserADE.Url.ToString().Substring(webBrowserADE.Url.ToString().IndexOf("//") + 2).Substring(0, webBrowserADE.Url.ToString().Substring(webBrowserADE.Url.ToString().IndexOf("//") + 2).IndexOf("/"))));
 
-                        var listaCssTratada = new List<string>();
+                        listaCssTratada.Add(novaCss.Replace("\"", string.Empty));
+                    });
 
-                        var urlFull = webBrowserGERAL.Url.ToString().Replace("https", "http");
+                    urlFull = string.Empty;
 
-                        urlFull = urlFull.Substring(0, urlFull.IndexOf(".jsf"));
+                    listaCssTratada.ForEach(x => urlFull += x);
+                    /*Fim Captura CSS*/
 
-                        listaCss.ForEach(delegate(string x)
+                    conteudo = atual;
+
+                    List<string> listaItens = Regex.Split(conteudo.Replace("\"", string.Empty).Replace("\n", " ").Replace("\t", " ").Replace("\r", " "), "role=row").ToList();
+
+                    listaItens.RemoveRange(0, 1);
+
+                    dynamic estrutura = new ExpandoObject();
+                    dynamic itemUrl = new ExpandoObject();
+                    dynamic itemListaEmenta;
+
+                    itemUrl.ListaEmenta = new List<dynamic>();
+
+                    Facilities facilities = new Facilities();
+
+                    listaItens.ForEach(delegate(string y)
+                    {
+                        try
                         {
-                            string novaCss = string.Format("{0}{1}", "<link", x.Substring(0, x.IndexOf(">") + 1));
+                            y = y.Substring(y.IndexOf("<td")).Substring(0, y.Substring(y.IndexOf("<td")).LastIndexOf("</td") + 5);
 
-                            novaCss = novaCss.Insert(novaCss.IndexOf("href=") + 5, ("http://" + webBrowserGERAL.Url.ToString().Substring(webBrowserGERAL.Url.ToString().IndexOf("//") + 2).Substring(0, webBrowserGERAL.Url.ToString().Substring(webBrowserGERAL.Url.ToString().IndexOf("//") + 2).IndexOf("/"))));
+                            var novaLista = Regex.Split(y, "</td>").ToList();
 
-                            listaCssTratada.Add(novaCss.Replace("\"", string.Empty));
-                        });
+                            novaLista.RemoveAll(x => x.Trim().Equals(string.Empty));
 
-                        urlFull = string.Empty;
+                            itemListaEmenta = new ExpandoObject();
 
-                        listaCssTratada.ForEach(x => urlFull += x);
+                            itemListaEmenta.TituloAto = facilities.ObterStringLimpa(string.Format("{0} {1} Nº{2}, {3}", novaLista[0], novaLista[1], novaLista[2], novaLista[3]));
+                            itemListaEmenta.DataEdicao = facilities.ObterStringLimpa(novaLista[3]);
+                            itemListaEmenta.Especie = facilities.ObterStringLimpa(novaLista[0]);
+                            itemListaEmenta.NumeroAto = facilities.ObterStringLimpa(novaLista[2]);
+                            itemListaEmenta.Publicacao = facilities.ObterStringLimpa(novaLista[3]);
 
-                        /*Fim Captura CSS*/
+                            itemListaEmenta.Republicacao = string.Empty;
+                            itemListaEmenta.Escopo = "FED";
+                            itemListaEmenta.IdFila = idUrl;
 
-                        conteudo = conteudo.Substring(indexInicio);
+                            y = y.Replace((y.Substring(y.IndexOf("<td role=gridcell"), y.IndexOf("<span style=text-align: justify") - y.IndexOf("<td role=gridcell"))),
+                                    "<div class=\"ui-dialog-content ui-widget-content\" style=\"height: 500px;\"><div class=\"line CLASSE_NAO_DEFINIDA\" style=\"ESTILO_NAO_DEFINIDO\"><h1><span style=\"align:center\">" + itemListaEmenta.TituloAto + "</span></h1><br></div><div class=\"line CLASSE_NAO_DEFINIDA\" style=\"ESTILO_NAO_DEFINIDO\"><br><h2>" + "<br></h2></div></div>");
 
-                        List<string> listaItens = Regex.Split(conteudo.Replace("\"", string.Empty).Replace("\n", " ").Replace("\t", " ").Replace("\r", " "), "role=row").ToList();
+                            itemListaEmenta.Texto = urlFull + facilities.removeTagScript(y);
+                            itemListaEmenta.Tipo = 3;
+                            itemListaEmenta.Metadado = "{" + string.Format("\"UF\":\"{0}\"", "FED") + "}";
 
-                        listaItens.RemoveRange(0, 2);
+                            itemListaEmenta.Hash = facilities.GerarHash(facilities.removerCaracterEspecial(facilities.ObterStringLimpa(y)));
+                            itemListaEmenta.Ementa = facilities.ObterStringLimpa(novaLista[4]);
 
-                        dynamic estrutura = new ExpandoObject();
-                        dynamic itemUrl = new ExpandoObject();
-                        dynamic itemListaEmenta;
+                            itemListaEmenta.Sigla = novaLista[1];
+                            itemListaEmenta.DescSigla = string.Empty;
+                            itemListaEmenta.HasContent = false;
 
-                        itemUrl.ListaEmenta = new List<dynamic>();
+                            itemListaEmenta.ListaArquivos = new List<ArquivoUpload>();
 
-                        listaItens.ForEach(delegate(string y)
+                            itemUrl.ListaEmenta.Add(itemListaEmenta);
+                        }
+                        catch (Exception ex)
                         {
-                            try
-                            {
-                                bool keyTitulo = false;
-                                string txtTitulo = " ";
+                            ex.Source = "App|ADE|Loop";
+                            new BuscaLegalDao().InserirLogErro(ex, idUrl.ToString(), y);
+                        }
+                    });
 
-                                y = "<" + y.Substring(0, y.IndexOf("<BR> </span>") + "<BR> </span>".Length);
+                    itemUrl.IdUrl = idUrl;
+                    estrutura.Lista_Nivel2 = new List<dynamic>() { itemUrl };
 
-                                y.ToList().ForEach(delegate(char x) { keyTitulo = x.ToString().Equals("<") || (keyTitulo && !x.ToString().Equals(">")); txtTitulo += !keyTitulo && !x.ToString().Equals(">") ? x.ToString() : txtTitulo.Substring(txtTitulo.Length - 1).Equals("|") ? string.Empty : "|"; });
+                    new BuscaLegalDao().AtualizarFontes(new List<dynamic>() { estrutura });
 
-                                var novaLista = txtTitulo.Split('|').ToList();
-
-                                novaLista.RemoveAll(x => x.Trim() == "");
-
-                                itemListaEmenta = new ExpandoObject();
-
-                                itemListaEmenta.TituloAto = string.Format("{0} {1} Nº{2}, {3}", novaLista[0], novaLista[1], novaLista[2], novaLista[3]);
-                                itemListaEmenta.DataEdicao = novaLista[3];
-                                itemListaEmenta.Especie = novaLista[0];
-                                itemListaEmenta.NumeroAto = novaLista[2];
-                                itemListaEmenta.Publicacao = novaLista[3];
-
-                                itemListaEmenta.Republicacao = string.Empty;
-                                itemListaEmenta.Escopo = "FED";
-                                itemListaEmenta.IdFila = idUrl;
-
-                                y = y.Replace((y.Substring(y.IndexOf("<td role=gridcell"), y.IndexOf("<span style=text-align: justify") - y.IndexOf("<td role=gridcell"))),
-                                        "<div class=\"ui-dialog-content ui-widget-content\" style=\"height: 500px;\"><div class=\"line CLASSE_NAO_DEFINIDA\" style=\"ESTILO_NAO_DEFINIDO\"><h1><span style=\"align:center\">" + itemListaEmenta.TituloAto + "</span></h1><br></div><div class=\"line CLASSE_NAO_DEFINIDA\" style=\"ESTILO_NAO_DEFINIDO\"><br><h2>" + "<br></h2></div></div>");
-
-                                itemListaEmenta.Texto = urlFull + new Facilities().removeTagScript(y);
-                                itemListaEmenta.Tipo = 3;
-                                itemListaEmenta.Metadado = "{" + string.Format("\"UF\":\"{0}\"", "FED") + "}";
-
-                                string textoConteudo = string.Empty;
-
-                                /*Concatena todos os demais valores superiores ao index 4 devido ser conteudo da ementa*/
-                                novaLista.GetRange(4, novaLista.Count() - 4).ForEach(x => textoConteudo += x + Environment.NewLine);
-
-                                itemListaEmenta.Hash = new Facilities().GerarHash(new Facilities().removerCaracterEspecial(textoConteudo));
-                                itemListaEmenta.Ementa = textoConteudo;
-
-                                itemListaEmenta.Sigla = novaLista[1];
-                                itemListaEmenta.DescSigla = string.Empty;
-                                itemListaEmenta.HasContent = false;
-
-                                itemListaEmenta.ListaArquivos = new List<ArquivoUpload>();
-
-                                itemUrl.ListaEmenta.Add(itemListaEmenta);
-                            }
-                            catch (Exception ex)
-                            {
-                                ex.Source = "App|ADE|Loop";
-                                new BuscaLegalDao().InserirLogErro(ex, idUrl.ToString(), y);
-                            }
-                        });
-
-                        itemUrl.IdUrl = idUrl;
-                        estrutura.Lista_Nivel2 = new List<dynamic>() { itemUrl };
-
-                        new BuscaLegalDao().AtualizarFontes(new List<dynamic>() { estrutura });
-                        this.BuscarNovaPage();
+                    foreach (HtmlElement eleHTml in webBrowserADE.Document.GetElementsByTagName("span"))
+                    {
+                        if (eleHTml.GetAttribute("className").Contains("ui-icon ui-icon-seek-next"))
+                        {
+                            eleHTml.InvokeMember("Click");
+                            break;
+                        }
                     }
+
+                    webAssistAde.Refresh(WebBrowserRefreshOption.Completely);
                 }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.Message);
+            }
+        }
+
+        private void Wb_DocumentCompleted_ADE(object sender, WebBrowserDocumentCompletedEventArgs e)
+        {
+            try
+            {
+                do { } while (webBrowserADE.ReadyState == WebBrowserReadyState.Loading);
+
+                webBrowserADE.Document.GetElementById("formPrincipal:dataAtoInicial_input").InnerText = "01/01/1988";
+                webBrowserADE.Document.GetElementById("formPrincipal:btnPesq").InvokeMember("Click");
+
+                var webAssistAde = new WebBrowser();
+
+                webAssistAde.DocumentCompleted += Wb_Assitente_Wb_Ade;
+                webAssistAde.Navigate("http://www.systax.com.br");
             }
             catch (Exception ex)
             {
                 ex.Source = "App|ADE";
                 new BuscaLegalDao().InserirLogErro(ex, idUrl.ToString(), string.Empty);
-                this.BuscarNovaPage();
             }
         }
 
@@ -380,17 +393,13 @@ namespace Systax_BuscaLegal
             }
         }
 
-        private void webBrowser1_DocumentCompleted_SefazAc(object sender, WebBrowserDocumentCompletedEventArgs e)
+        private void Wb_DocumentCompleted_SefazAc(object sender, WebBrowserDocumentCompletedEventArgs e)
         {
             WebBrowser web = (WebBrowser)sender;
 
             try
             {
-                do
-                {
-                    // Do nothing while we wait for the page to load
-                }
-                while (web.ReadyState == WebBrowserReadyState.Loading);
+                do { } while (web.ReadyState == WebBrowserReadyState.Loading);
 
                 List<string> listUrls = new List<string>();
 
@@ -404,13 +413,28 @@ namespace Systax_BuscaLegal
                     {
                         if (element.InnerHtml.ToLower().Contains("<a href=") || (element.InnerHtml.ToLower().Contains("href=") && element.InnerHtml.ToLower().Contains(".pdf")))
                         {
-                            listUrls = Regex.Split(element.InnerHtml.Replace("\"", string.Empty), "<A href=").ToList();
+                            listUrls = Regex.Split(element.InnerHtml.Replace("\"", string.Empty), "<div style=width: 100%;").ToList();
 
-                            listUrls = listUrls.Count == 1 ? Regex.Split(element.InnerHtml.Replace("\"", string.Empty), "href=").ToList() : listUrls;
+                            if (listUrls.Count == 1)
+                            {
+                                listUrls = Regex.Split(element.InnerHtml.Replace("\"", string.Empty), "<A href=").ToList();
+                                listUrls = listUrls.Count == 1 ? Regex.Split(element.InnerHtml.Replace("\"", string.Empty), "href=").ToList() : listUrls;
 
-                            listUrls.RemoveAt(0);
+                                listUrls.RemoveAt(0);
+                                listUrls = listUrls.Select(x => x.Substring(0, x.IndexOf(">")).Replace("amp;", string.Empty)).ToList();
+                            }
+                            else
+                            {
+                                listUrls.RemoveAt(0);
 
-                            listUrls = listUrls.Select(x => x.Substring(0, x.IndexOf(">"))).ToList();
+                                var facilities = new Facilities();
+
+                                listUrls = listUrls.Select(item => facilities.ObterStringLimpa(item.Substring(item.IndexOf("href=") + 5).Substring(0, item.Substring(item.IndexOf("href=") + 5).IndexOf(" ") + 1) + "|"
+                                                                      + item.Substring(item.IndexOf("<strong") + 8).Substring(0, item.Substring(item.IndexOf("<strong") + 8).IndexOf("</strong>")) + "|"
+                                                                      + (item.IndexOf("<p>") >= 0 ? Regex.Split(item, "<p>").Length > 2 ? Regex.Split(item, "<p>")[1] + "|" : "|" : "|")
+                                                                      + (item.IndexOf("<p>") >= 0 ? Regex.Split(item, "<p>").Length == 2 ? Regex.Split(item, "<p>")[1] : Regex.Split(item, "<p>")[2] + "|" : "|")
+                                                                      + (item.IndexOf("<p><span") >= 0 ? item.Substring(item.IndexOf("<p><span")).Substring(0, item.Substring(item.IndexOf("<p><span")).IndexOf("</p>")) : string.Empty)).Replace("&nbsp;", string.Empty)).ToList();
+                            }
                         }
                     }
                 }
@@ -422,10 +446,12 @@ namespace Systax_BuscaLegal
                         var webBrowser2 = new WebBrowser();
 
                         webBrowser2.ScriptErrorsSuppressed = true;
-                        webBrowser2.Navigate(web.Url.AbsoluteUri.ToString() + item.Replace("amp;", string.Empty));
-                        webBrowser2.DocumentCompleted += new WebBrowserDocumentCompletedEventHandler(webBrowser1_DocumentCompleted_SefazAc);
+                        webBrowser2.Navigate(web.Url.AbsoluteUri.ToString() + item);
+                        webBrowser2.DocumentCompleted += new WebBrowserDocumentCompletedEventHandler(Wb_DocumentCompleted_SefazAc);
 
-                        Debug.Print("SubLink - " + web.Url.AbsoluteUri.ToString() + item.Replace("amp;", string.Empty));
+                        //Debug.Print("SubLink - " + web.Url.AbsoluteUri.ToString() + item);
+
+                        Thread.Sleep(2000);
                     }
 
                     listUrls = new List<string>();
@@ -446,7 +472,7 @@ namespace Systax_BuscaLegal
                     {
                         dynamic objItenUrl = new ExpandoObject();
 
-                        objItenUrl.Url = web.Url.AbsoluteUri.ToString().Substring(0, web.Url.AbsoluteUri.ToString().IndexOf(".br/") + 3) + itemX.Replace("amp;", string.Empty).Substring(0, itemX.Replace("amp;", string.Empty).IndexOf(" "));
+                        objItenUrl.Url = web.Url.AbsoluteUri.ToString().Substring(0, web.Url.AbsoluteUri.ToString().IndexOf(".br/") + 3) + itemX;
                         objUrll.Lista_Nivel2.Add(objItenUrl);
                     });
 
@@ -458,7 +484,7 @@ namespace Systax_BuscaLegal
             }
             catch (Exception)
             {
-                Debug.Print("Error -" + web.Url.AbsoluteUri.ToString());
+                //Debug.Print("Error -" + web.Url.AbsoluteUri.ToString());
             }
         }
 
@@ -1285,28 +1311,6 @@ namespace Systax_BuscaLegal
             }
         }
 
-        private void BuscarNovaPage()
-        {
-            if (dataCorrente <= DateTime.Now)
-            {
-                if (dataCorrente == new DateTime(2000, 01, 01))
-                {
-                    webBrowserGERAL.Document.GetElementById("formPrincipal:dataAtoInicial_input").InnerText = dataCorrente.ToString("dd/MM/yyyy");
-                    webBrowserGERAL.Document.GetElementById("formPrincipal:dataAtoFinal_input").InnerText = dataCorrente.AddYears(1).ToString("dd/MM/yyyy");
-
-                    dataCorrente = dataCorrente.AddYears(1);
-                }
-                else
-                {
-                    webBrowserGERAL.Document.GetElementById("formPrincipal:dataAtoInicial_input").InnerText = dataCorrente.ToString("dd/MM/yyyy");
-                    webBrowserGERAL.Document.GetElementById("formPrincipal:dataAtoFinal_input").InnerText = dataCorrente.ToString("dd/MM/yyyy");
-                }
-
-                dataCorrente = dataCorrente.AddDays(1);
-                webBrowserGERAL.Document.GetElementById("formPrincipal:btnPesq").InvokeMember("Click");
-            }
-        }
-
         private void ProcessarBusca()
         {
             string modoProcessamento = System.Configuration.ConfigurationManager.AppSettings["modProc"].ToString();
@@ -1321,8 +1325,10 @@ namespace Systax_BuscaLegal
 
             #region "Captura URL's"
 
-            if (modoProcessamento.Equals("f") || modoProcessamento.Equals("u"))
+            if (modoProcessamento.Equals("f") || modoProcessamento.Equals("u1"))
             {
+                this.Text = "RFB - URLS";
+
                 string resposta = new Facilities().getHtmlPaginaByGet("http://idg.receita.fazenda.gov.br/acesso-rapido/legislacao", string.Empty);
 
                 resposta = System.Net.WebUtility.HtmlDecode(resposta.Replace("\n", " ").Replace("\r", " ").Replace("\t", " "));
@@ -1430,6 +1436,8 @@ namespace Systax_BuscaLegal
 
             if ((modoProcessamento.Equals("f") || modoProcessamento.Equals("d")) && siglaFonteProcessamento.Equals("rfb"))
             {
+                this.Text = "RFB - DOCS";
+
                 if (listaUrl.Count == 0)
                     listaUrl = new BuscaLegalDao().ObterUrlsParaProcessamento("rfb");
 
@@ -1481,7 +1489,7 @@ namespace Systax_BuscaLegal
 
                             if (respostaNivel2_.Contains("Sua sessão expirou ou você não tem permissão para acessar esse conteúdo"))
                             {
-                                itensNaoMapeados.Add("Inválida " + urlTratada);
+                                itensNaoMapeados.Add("Inválida " + (urlTratada + "|").Substring(0, (urlTratada + "|").IndexOf("|")));
                                 continue;
                             }
 
@@ -1525,7 +1533,7 @@ namespace Systax_BuscaLegal
 
                                     using (WebClient webClient = new WebClient())
                                     {
-                                        webClient.DownloadFile(urlTratada.Substring(0, urlTratada.LastIndexOf("/")) + "/" + x.Split('|')[0], nomeArq);
+                                        webClient.DownloadFile(urlTratada.Substring(0, urlTratada.IndexOf("|")).Substring(0, urlTratada.Substring(0, urlTratada.IndexOf("|")).LastIndexOf("/")) + "/" + x.Split('|')[0], nomeArq);
                                     }
 
                                     //string dadosPdf =new Facilities().LeArquivo(nomeArq);
@@ -1594,82 +1602,23 @@ namespace Systax_BuscaLegal
 
                             itemListaVez.ListaEmenta.Add(dadosEmenta);
 
-                            ///*Obtendo as demais variações do Texto*/
-                            ///*1 - Original*/
-                            //respostaNivel2_ = new Facilities().getHtmlPaginaByGet(urlTratada.Replace("anotado", "original"), string.Empty);
-                            //respostaNivel2_ = System.Net.WebUtility.HtmlDecode(respostaNivel2_.Replace("\"", string.Empty).Replace("\n", " ").Replace("\r", " ").Replace("\t", " "));
-
-                            //indexInicial = respostaNivel2_.ToLower().IndexOf("<div class=divtituloato");
-
-                            //listFrameWork = new List<string>() { (indexInicial >= 0 && respostaNivel2_.ToLower().IndexOf("<p class=ementa") >= 0 ? indexInicial.ToString() + "|<div id=divRodape|<div class=left|<span class=right visoes|<span class=left cleft|</span>|<p class=ementa|</p>" : "-1")
-                            //                                    ,(indexInicial >= 0 && respostaNivel2_.ToLower().IndexOf("<p class=tachado ementa") >= 0 ? indexInicial.ToString() + "|<div id=divRodape|<div class=left|<span class=right visoes|<span class=left cleft|</span>|<p class=tachado ementa|</p>" : "-1")};
-
-                            //listFrameWork.RemoveAll(x => x.Contains("-1"));
-
-                            //if (listFrameWork.Count == 0)
-                            //{
-                            //    itensNaoMapeados.Add("Parcial " + urlTratada);
-                            //}
-                            //else
-                            //{
-                            //    respostaNivel2_ = respostaNivel2_.Substring(int.Parse(listFrameWork[0].Split('|')[0])).Substring(0, respostaNivel2_.Substring(int.Parse(listFrameWork[0].Split('|')[0])).IndexOf(listFrameWork[0].Split('|')[1]));
-                            //    var hashComparacao = new Facilities().GerarHash(new Facilities().removerCaracterEspecial(new Facilities().removeTagScript(respostaNivel2_)));
-
-                            //    /*Caso conteúdos dos documentos forem iguais não inserimos as variações dos documentos*/
-                            //    if (!hashComparacao.Equals(dadosEmenta.Hash))
-                            //    {
-                            //        dadosEmenta = new ExpandoObject();
-
-                            //        dadosEmenta.ListaArquivos = new List<ArquivoUpload>();
-
-                            //        dadosEmenta.Texto = novaCss + respostaNivel2_;
-                            //        dadosEmenta.Hash = hashComparacao;
-                            //        dadosEmenta.HasContent = false;
-                            //        dadosEmenta.Tipo = 1;
-
-                            //        itemListaVez.ListaEmenta.Add(dadosEmenta);
-
-                            //        /*2 - Vigente*/
-                            //        respostaNivel2_ = new Facilities().getHtmlPaginaByGet(urlTratada.Replace("anotado", "compilado"), string.Empty);
-                            //        respostaNivel2_ = System.Net.WebUtility.HtmlDecode(respostaNivel2_.Replace("\"", "").Replace("\n", " ").Replace("\r", " ").Replace("\t", " "));
-
-                            //        if (!respostaNivel2_.Contains("Sua sessão expirou ou você não tem permissão para acessar esse conteúdo"))
-                            //        {
-                            //            respostaNivel2_ = respostaNivel2_.Substring(int.Parse(listFrameWork[0].Split('|')[0])).Substring(0, respostaNivel2_.Substring(int.Parse(listFrameWork[0].Split('|')[0])).IndexOf(listFrameWork[0].Split('|')[1]));
-
-                            //            dadosEmenta = new ExpandoObject();
-
-                            //            dadosEmenta.ListaArquivos = new List<ArquivoUpload>();
-
-                            //            dadosEmenta.Texto = novaCss + respostaNivel2_;
-                            //            dadosEmenta.Hash = new Facilities().GerarHash(new Facilities().removerCaracterEspecial(respostaNivel2_));
-                            //            dadosEmenta.HasContent = false;
-                            //            dadosEmenta.Tipo = 2;
-
-                            //            itemListaVez.ListaEmenta.Add(dadosEmenta);
-                            //        }
-                            //    }
-                            //}
-
                             dynamic listaNivel2Nova = new ExpandoObject();
 
                             listaNivel2Nova.Lista_Nivel2 = new List<dynamic>() { itemListaVez };
 
                             new BuscaLegalDao().AtualizarFontes(new List<dynamic>() { listaNivel2Nova });
 
-                            Thread.Sleep(1500);
+                            Thread.Sleep(2000);
                         }
                         catch (Exception)
                         {
-                            itensNaoMapeados.Add("ERRO " + urlTratada);
+                            itensNaoMapeados.Add("ERRO " + (urlTratada + "|").Substring(0, (urlTratada + "|").IndexOf("|")));
                             //new BuscaLegalDao().InserirLogErro(ex, urlTratada, string.Format("{0}", "Captura DOC"));
                         }
                     }
                 }
 
-                string novoNcm = "URL\n";
-                itensNaoMapeados.ForEach(x => novoNcm += x.Replace("\n", "|") + "\n");
-                File.WriteAllText(@"C:\Temp\UrlErrosRFB.csv", novoNcm);
+                new Facilities().GravaArquivoLogCsv(itensNaoMapeados, "URL", "UrlErrosRobotRFB");
             }
 
             #endregion
@@ -1952,19 +1901,16 @@ namespace Systax_BuscaLegal
 
             if ((modoProcessamento.Equals("f") || modoProcessamento.Equals("d")) && siglaFonteProcessamento.Equals("ade"))
             {
-                webBrowserGERAL = new WebBrowser();
+                this.Text = "ADE - DOCS";
 
-                if (idUrl == 0)
-                {
-                    List<dynamic> listaProcessamento = new BuscaLegalDao().ObterUrlsParaProcessamento("ade");
-                    idUrl = listaProcessamento.FirstOrDefault().Lista_Nivel2[0].IdUrl;
-                }
+                webBrowserADE = new WebBrowser();
 
-                webBrowserGERAL.ScriptErrorsSuppressed = true;
+                List<dynamic> listaProcessamento = new BuscaLegalDao().ObterUrlsParaProcessamento("ade");
+                idUrl = listaProcessamento.FirstOrDefault().Lista_Nivel2[0].IdUrl;
 
-                webBrowserGERAL.Navigate(@"http://novodecisoes.receita.fazenda.gov.br/consultaweb/index.jsf");
+                webBrowserADE.DocumentCompleted += new WebBrowserDocumentCompletedEventHandler(Wb_DocumentCompleted_ADE);
+                webBrowserADE.Navigate(@"http://novodecisoes.receita.fazenda.gov.br/consultaweb/index.jsf");
 
-                webBrowserGERAL.DocumentCompleted += new WebBrowserDocumentCompletedEventHandler(webBrowser1_DocumentCompleted);
             }
 
             #endregion
@@ -7289,15 +7235,16 @@ namespace Systax_BuscaLegal
 
             #region "Captura URL's"
 
-            if (modoProcessamento.Equals("f") || modoProcessamento.Equals("u1"))
+            if (modoProcessamento.Equals("f") || modoProcessamento.Equals("u"))
             {
 
-                linksSefazAc = new List<string>() {/*"http://www.sefaz.ac.gov.br/wps/portal/sefaz/sefaz/principal/!ut/p/c5/7ZLLboJQEIafxRfgDByBwxLSgxxuilxENgSIJYCAiY1Qnr5oF00XtYsaV53ZTDLzzzfJ_ChBc3bZpSqzt6rvsiOKUSKlG4N5fmiIPAm3GNgmWr9YKxETD8_9vZTCD6HCL-odimGZ-vX7iU3NtK1htNxcZ24eDg5teCcoRlf2waXnMaDN5NSa5YTldJ5UgELhI92jqt294oO6-OMl_-rnq02UlMc-n122u_ruziz_2b9Dco2-PaA9SuSvLWuHEmAippGuefxcoeCBfvvOIrYszAQG2DFBEFby81hk-VDW_JUqb7mhaDngiIyxuBQUUCRFkgSCYg2d2vBi3cIWTWPgyTUHdfEBGlrzCA!!/dl3/d3/L2dBISEvZ0FBIS9nQSEh/?1dmy&current=true&urile=wcm%3apath%3a/SefazServ/Portal+SefazServ/Principal/Servicos/Legislacao/Legislacao+Estadual+repo/Leis+Ordinarias/"
+                linksSefazAc = new List<string>() { "http://www.sefaz.ac.gov.br/wps/portal/sefaz/sefaz/principal/!ut/p/c5/7ZLPboJAEMafxRdgd1kWliO2q_xxwVUWkQtB0xBQxKSNxH36LunB9FCbtKanzlwmmfnmN8l8oAA6T9Wlqau3pj9VR5CDwi6XfiDW0ieIyhWGwTJLnqM5wVRg3d_aJfwiPPiNegNyaJXr9noO1EGtWiWG1OEwVnzg7IB4yq68rTBnJEmlpetpxGWtXpUH4d5F2UwwLxayKvvJLy_5V_9EHYKiPvY77ZPN6Jw7s-ijf4cU-333AragcG5bEs4oDAhm2WwqkK5A-kDHfGbRhWNqQgAxD6Fpzp2_Y1HroSz9lWbXGcO-M6BBHYyJZbrQtV3bNinIn8C5k5dojAUJ_QHRMQdvMnkHWY3K_w!!/dl3/d3/L2dBISEvZ0FBIS9nQSEh/?1dmy&current=true&urile=wcm%3apath%3a/SefazServ/Portal+SefazServ/Principal/Servicos/Legislacao/Legislacao+Estadual+repo/Leis+Ordinarias/"
                                                    ,"http://www.sefaz.ac.gov.br/wps/portal/sefaz/sefaz/principal/!ut/p/c5/7ZLPboJAEMafxRdgd1kWliO2q_xxwVUWkQtB0xBQxKSNxH36LunB9FCbtKanzlwmmfnmN8l8oAA6T9Wlqau3pj9VR5CDwi6XfiDW0ieIyhWGwTJLnqM5wVRg3d_aJfwiPPiNegNyaJXr9noO1EGtWiWG1OEwVnzg7IB4yq68rTBnJEmlpetpxGWtXpUH4d5F2UwwLxayKvvJLy_5V_9EHYKiPvY77ZPN6Jw7s-ijf4cU-333AragcG5bEs4oDAhm2WwqkK5A-kDHfGbRhWNqQgAxD6Fpzp2_Y1HroSz9lWbXGcO-M6BBHYyJZbrQtV3bNinIn8C5k5dojAUJ_QHRMQdvMnkHWY3K_w!!/dl3/d3/L2dBISEvZ0FBIS9nQSEh/?1dmy&current=true&urile=wcm%3apath%3a/SefazServ/Portal+SefazServ/Principal/Servicos/Legislacao/Legislacao+Estadual+repo/Leis+Complementares/"
-                                                   ,"http://www.al.ac.leg.br/leis/?page_id=9789"
                                                    ,"http://www.sefaz.ac.gov.br/wps/portal/sefaz/sefaz/principal/!ut/p/c5/7ZLPboJAEMafxRdgd1kWliO2q_xxwVUWkQtB0xBQxKSNxH36LunB9FCbtKanzlwmmfnmN8l8oAA6T9Wlqau3pj9VR5CDwi6XfiDW0ieIyhWGwTJLnqM5wVRg3d_aJfwiPPiNegNyaJXr9noO1EGtWiWG1OEwVnzg7IB4yq68rTBnJEmlpetpxGWtXpUH4d5F2UwwLxayKvvJLy_5V_9EHYKiPvY77ZPN6Jw7s-ijf4cU-333AragcG5bEs4oDAhm2WwqkK5A-kDHfGbRhWNqQgAxD6Fpzp2_Y1HroSz9lWbXGcO-M6BBHYyJZbrQtV3bNinIn8C5k5dojAUJ_QHRMQdvMnkHWY3K_w!!/dl3/d3/L2dBISEvZ0FBIS9nQSEh/?1dmy&current=true&urile=wcm%3apath%3a/SefazServ/Portal+SefazServ/Principal/Servicos/Legislacao/Legislacao+Estadual+repo/Decretos/"
-                                                   ,*/"http://www.sefaz.ac.gov.br/wps/portal/sefaz/sefaz/principal/!ut/p/c5/7ZLPboJAEMafxRdgd1kWliO2q_xxwVUWkQtB0xBQxKSNxH36LunB9FCbtKanzlwmmfnmN8l8oAA6T9Wlqau3pj9VR5CDwi6XfiDW0ieIyhWGwTJLnqM5wVRg3d_aJfwiPPiNegNyaJXr9noO1EGtWiWG1OEwVnzg7IB4yq68rTBnJEmlpetpxGWtXpUH4d5F2UwwLxayKvvJLy_5V_9EHYKiPvY77ZPN6Jw7s-ijf4cU-333AragcG5bEs4oDAhm2WwqkK5A-kDHfGbRhWNqQgAxD6Fpzp2_Y1HroSz9lWbXGcO-M6BBHYyJZbrQtV3bNinIn8C5k5dojAUJ_QHRMQdvMnkHWY3K_w!!/dl3/d3/L2dBISEvZ0FBIS9nQSEh/?1dmy&current=true&urile=wcm%3apath%3a/SefazServ/Portal+SefazServ/Principal/Servicos/Legislacao/Legislacao+Estadual+repo/Portarias/"
-                                                   ,"http://www.sefaz.ac.gov.br/wps/portal/sefaz/sefaz/principal/!ut/p/c5/7ZLPboJAEMafxRdgd1kWliO2q_xxwVUWkQtB0xBQxKSNxH36LunB9FCbtKanzlwmmfnmN8l8oAA6T9Wlqau3pj9VR5CDwi6XfiDW0ieIyhWGwTJLnqM5wVRg3d_aJfwiPPiNegNyaJXr9noO1EGtWiWG1OEwVnzg7IB4yq68rTBnJEmlpetpxGWtXpUH4d5F2UwwLxayKvvJLy_5V_9EHYKiPvY77ZPN6Jw7s-ijf4cU-333AragcG5bEs4oDAhm2WwqkK5A-kDHfGbRhWNqQgAxD6Fpzp2_Y1HroSz9lWbXGcO-M6BBHYyJZbrQtV3bNinIn8C5k5dojAUJ_QHRMQdvMnkHWY3K_w!!/dl3/d3/L2dBISEvZ0FBIS9nQSEh/?1dmy&current=true&urile=wcm%3apath%3a/SefazServ/Portal+SefazServ/Principal/Servicos/Legislacao/Legislacao+Estadual+repo/Instrucao+Normativa/"};
+                                                   ,"http://www.sefaz.ac.gov.br/wps/portal/sefaz/sefaz/principal/!ut/p/c5/7ZLPboJAEMafxRdgd1kWliO2q_xxwVUWkQtB0xBQxKSNxH36LunB9FCbtKanzlwmmfnmN8l8oAA6T9Wlqau3pj9VR5CDwi6XfiDW0ieIyhWGwTJLnqM5wVRg3d_aJfwiPPiNegNyaJXr9noO1EGtWiWG1OEwVnzg7IB4yq68rTBnJEmlpetpxGWtXpUH4d5F2UwwLxayKvvJLy_5V_9EHYKiPvY77ZPN6Jw7s-ijf4cU-333AragcG5bEs4oDAhm2WwqkK5A-kDHfGbRhWNqQgAxD6Fpzp2_Y1HroSz9lWbXGcO-M6BBHYyJZbrQtV3bNinIn8C5k5dojAUJ_QHRMQdvMnkHWY3K_w!!/dl3/d3/L2dBISEvZ0FBIS9nQSEh/?1dmy&current=true&urile=wcm%3apath%3a/SefazServ/Portal+SefazServ/Principal/Servicos/Legislacao/Legislacao+Estadual+repo/Portarias/"
+                                                   ,"http://www.sefaz.ac.gov.br/wps/portal/sefaz/sefaz/principal/!ut/p/c5/7ZLPboJAEMafxRdgd1kWliO2q_xxwVUWkQtB0xBQxKSNxH36LunB9FCbtKanzlwmmfnmN8l8oAA6T9Wlqau3pj9VR5CDwi6XfiDW0ieIyhWGwTJLnqM5wVRg3d_aJfwiPPiNegNyaJXr9noO1EGtWiWG1OEwVnzg7IB4yq68rTBnJEmlpetpxGWtXpUH4d5F2UwwLxayKvvJLy_5V_9EHYKiPvY77ZPN6Jw7s-ijf4cU-333AragcG5bEs4oDAhm2WwqkK5A-kDHfGbRhWNqQgAxD6Fpzp2_Y1HroSz9lWbXGcO-M6BBHYyJZbrQtV3bNinIn8C5k5dojAUJ_QHRMQdvMnkHWY3K_w!!/dl3/d3/L2dBISEvZ0FBIS9nQSEh/?1dmy&current=true&urile=wcm%3apath%3a/SefazServ/Portal+SefazServ/Principal/Servicos/Legislacao/Legislacao+Estadual+repo/Instrucao+Normativa/"
+                                                   ,"http://www.sefaz.ac.gov.br/wps/portal/sefaz/sefaz/principal/!ut/p/c5/7ZLPboJAEMafxRdgd1kWliO2q_xxwVUWkQtB0xBQxKSNxH36LunB9FCbtKanzlwmmfnmN8l8oAA6T9Wlqau3pj9VR5CDwi6XfiDW0ieIyhWGwTJLnqM5wVRg3d_aJfwiPPiNegNyaJXr9noO1EGtWiWG1OEwVnzg7IB4yq68rTBnJEmlpetpxGWtXpUH4d5F2UwwLxayKvvJLy_5V_9EHYKiPvY77ZPN6Jw7s-ijf4cU-333AragcG5bEs4oDAhm2WwqkK5A-kDHfGbRhWNqQgAxD6Fpzp2_Y1HroSz9lWbXGcO-M6BBHYyJZbrQtV3bNinIn8C5k5dojAUJ_QHRMQdvMnkHWY3K_w!!/dl3/d3/L2dBISEvZ0FBIS9nQSEh/?1dmy&current=true&urile=wcm%3apath%3a/SefazServ/Portal+SefazServ/Principal/Servicos/Legislacao/Legislacao+Estadual+repo/convenios/"
+                };
 
                 WebBrowser webBrowser;
 
@@ -7305,8 +7252,9 @@ namespace Systax_BuscaLegal
                 {
                     webBrowser = new WebBrowser();
                     webBrowser.ScriptErrorsSuppressed = true;
+                    webBrowser.DocumentCompleted += new WebBrowserDocumentCompletedEventHandler(Wb_DocumentCompleted_SefazAc);
+
                     webBrowser.Navigate(item);
-                    webBrowser.DocumentCompleted += new WebBrowserDocumentCompletedEventHandler(webBrowser1_DocumentCompleted_SefazAc);
                 }
             }
 
@@ -7348,7 +7296,6 @@ namespace Systax_BuscaLegal
                             string ementa = string.Empty;
 
                             string nomeArq = urlTratada.Substring(urlTratada.LastIndexOf("/") + 1);
-                            //string nomeForRep = nomeArq.Substring(0, nomeArq.LastIndexOf("."));
 
                             nomeArq = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory.ToString(), Regex.Replace(nomeArq, "[^0-9a-zA-Z]+", string.Empty) + ".pdf");
 
@@ -12219,6 +12166,35 @@ namespace Systax_BuscaLegal
             #endregion
 
             #endregion
+
+            ConfiguraCiclo();
+        }
+
+        public void ConfiguraCiclo()
+        {
+            new Facilities().GravaArquivoLogTxtContinuo("Suspenso");
+
+            try
+            {
+                System.Timers.Timer aTimer = new System.Timers.Timer();
+                aTimer.Interval = int.Parse(System.Configuration.ConfigurationSettings.AppSettings["timeSleepCiclo"].ToString());
+                //// Hook up the Elapsed event for the timer. 
+                aTimer.Elapsed += OnTimedEvent;
+                //// Have the timer fire repeated events (true is the default)
+                aTimer.AutoReset = false;
+                //// Start the timer
+                aTimer.Enabled = true;
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.Message);
+            }
+        }
+
+        private void OnTimedEvent(Object source, System.Timers.ElapsedEventArgs e)
+        {
+            new Facilities().GravaArquivoLogTxtContinuo("Iniciado");
+            ProcessarBusca();
         }
 
         public void SimulacaoClick(Object source, System.Timers.ElapsedEventArgs e)

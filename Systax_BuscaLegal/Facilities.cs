@@ -646,5 +646,171 @@ namespace Systax_BuscaLegal
 
             return maxVer;
         } // End Function GetBrowserVersion 
+
+        public void CorrecaoData()
+        {
+            var listDocs = new BuscaLegalDao().ObterDocsCorrecao();
+
+            List<dynamic> listFinal = new List<dynamic>();
+            List<string> listaTratamento2 = new List<string>();
+            List<string> listaErros = new List<string>();
+
+            string dataReformulada = string.Empty;
+
+            foreach (var item in listDocs)
+            {
+                dynamic itemFinal = new ExpandoObject();
+
+                itemFinal.Id = item.Id;
+
+                string itemCorrigir = item.Texto;
+
+                dataReformulada = string.Empty;
+
+                itemCorrigir.Replace(" ", "|").Replace("º", string.Empty).Replace("-", "/").ToList().ForEach(delegate(char itemTratar)
+                {
+                    #region "ID fonte 1,2,7,8,9,10,11,13,14,15"
+
+                    try
+                    {
+                        if (char.IsNumber(itemTratar) && string.IsNullOrEmpty(dataReformulada))
+                            dataReformulada = itemTratar.ToString();
+
+                        else if ((char.IsNumber(itemTratar) || "/.".Contains(itemTratar.ToString())) && !string.IsNullOrEmpty(dataReformulada) && !dataReformulada.Contains("|"))
+                            dataReformulada += itemTratar.ToString();
+
+                        else if (!dataReformulada.Contains("|") && !string.IsNullOrEmpty(dataReformulada))
+                        {
+                            dataReformulada += "|";
+
+                            if (dataReformulada.Length <= 7)
+                                dataReformulada = string.Empty;
+                        }
+                    }
+                    catch (Exception)
+                    {
+                    }
+
+                    #endregion
+                });
+
+                dataReformulada = dataReformulada.Replace("|", string.Empty).Replace(".", "/");
+
+                try
+                {
+                    itemFinal.DataFinal = TratamentoDateTime(dataReformulada).ToString("yyyy-MM-dd");
+                    listFinal.Add(itemFinal);
+                }
+                catch (Exception)
+                {
+                    listaErros.Add(item.Id + ";" + item.Texto);
+                    listaTratamento2.Add(itemCorrigir);
+                }
+            }
+
+            #region "CORREÇÂO NÍVEL 2"
+
+            List<string> listaMeses = new List<string>() { "janeiro|01", "fevereiro|02", "março|03", "marco|03", "abril|04", "maio|05", "junho|06", "julho|07", "agosto|08", "setembro|09", "outubro|10", "novembro|11", "dezembro|12" };
+
+            listaTratamento2.ForEach(delegate(string itemCorrNivel2)
+            {
+                var listItensValidar = Regex.Split(itemCorrNivel2, "de ");
+
+                if (!string.IsNullOrEmpty(itemCorrNivel2.Trim()))
+                {
+                    for (int i = 0; i < listItensValidar.Length; i++)
+                    {
+                        try
+                        {
+                            if (listaMeses.Exists(x => x.Split('|')[0].Contains(listItensValidar[i].Trim())))
+                            {
+                                dataReformulada = Regex.Replace(listItensValidar[i - 1], "[^0-9]+", string.Empty) + "/" + listaMeses.Find(x => x.Split('|')[0].Contains(listItensValidar[i].Trim())).Split('|')[1] + "/" + Regex.Replace(listItensValidar[i + 1], "[^0-9]+", string.Empty);
+
+                                dynamic itemFinal = new ExpandoObject();
+
+                                itemFinal.Id = int.Parse(listaErros.Find(x => x.Contains(itemCorrNivel2.Trim())).Split(';')[0]);
+                                itemFinal.DataFinal = TratamentoDateTime(dataReformulada).ToString("yyyy-MM-dd");
+
+                                listaErros.RemoveAll(x => x.Contains(itemCorrNivel2.Trim()));
+                            }
+                        }
+                        catch (Exception)
+                        {
+                        }
+                    }
+                }
+            });
+
+            #endregion
+
+            if (listaErros.Count > 0)
+            {
+                string novoNcm = "ID;data\n";
+                listaErros.ForEach(x => novoNcm += x + "\n");
+                File.WriteAllText(@"C:\Temp\ConversaoDateTime.csv", novoNcm);
+            }
+
+            new BuscaLegalDao().AtualizarDocsCorrecao(listFinal);
+        }
+
+        private DateTime TratamentoDateTime(string dataReformulada)
+        {
+            try
+            {
+                string ano = dataReformulada.Split('/')[2];
+                string mes = dataReformulada.Split('/')[1].Length < 2 ? "0" + dataReformulada.Split('/')[1] : dataReformulada.Split('/')[1];
+                string dia = dataReformulada.Split('/')[0].Length < 2 ? "0" + dataReformulada.Split('/')[0] : dataReformulada.Split('/')[0];
+
+                DateTime dataFinal;
+
+                if (dia.Length < 4)
+                {
+                    if (ano.Length <= 2 && int.Parse(ano) >= int.Parse(DateTime.Now.ToString("yyyy").Substring(2)))
+                        ano = "19" + ano;
+
+                    else if (ano.Length <= 2 && int.Parse(ano) <= int.Parse(DateTime.Now.ToString("yyyy").Substring(2)))
+                        ano = "20" + ano;
+
+                    dataFinal = new DateTime(int.Parse(ano), int.Parse(mes), int.Parse(dia));
+                }
+                else
+                {
+                    dataFinal = new DateTime(int.Parse(dia), int.Parse(mes), int.Parse(ano));
+                }
+
+                return dataFinal;
+            }
+            catch (Exception)
+            {
+                throw;
+            }
+        }
+
+        public void GravaArquivoLogTxtContinuo(string status)
+        {
+            string caminhoArq = @"c:\temp\logExecao.txt";//System.Configuration.ConfigurationManager.AppSettings["pathConfigLog"].ToString();
+            string log = "Última Execução do serviço: " + DateTime.Now.ToString("dd/MM/yyyy HH:mm:ss") + " - " + status + Environment.NewLine;
+
+            if (!System.IO.File.Exists(caminhoArq))
+                System.IO.File.Create(caminhoArq).Dispose();
+
+            System.IO.StreamWriter file = new System.IO.StreamWriter(caminhoArq, true);
+
+            file.WriteLine(log);
+            file.Close();
+            file.Dispose();
+        }
+
+        public void GravaArquivoLogCsv(List<string> listItens, string tituloConteudo, string nomeArquivo)
+        {
+            if (listItens.Count > 0)
+            {
+                tituloConteudo = tituloConteudo.Contains("\n") ? tituloConteudo : tituloConteudo + "\n";
+                nomeArquivo = nomeArquivo.ToLower().Contains(".csv") ? nomeArquivo : nomeArquivo + ".csv";
+
+                listItens.ForEach(x => tituloConteudo += x.Replace("\n", "|") + "\n");
+                File.WriteAllText(@"C:\Temp\" + nomeArquivo, tituloConteudo);
+            }
+        }
     }
 }
