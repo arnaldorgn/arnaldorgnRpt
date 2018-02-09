@@ -786,10 +786,10 @@ namespace Systax_BuscaLegal
             }
         }
 
-        public void GravaArquivoLogTxtContinuo(string status)
+        public void GravaArquivoLogTxtContinuo(string status, string pathFile = "", string textoLog = "")
         {
-            string caminhoArq = @"c:\temp\logExecao.txt";//System.Configuration.ConfigurationManager.AppSettings["pathConfigLog"].ToString();
-            string log = "Última Execução do serviço: " + DateTime.Now.ToString("dd/MM/yyyy HH:mm:ss") + " - " + status + Environment.NewLine;
+            string caminhoArq = pathFile.Trim().Equals(string.Empty) ? @"c:\temp\logExecao.txt" : pathFile;
+            string log = (textoLog.Trim().Equals(string.Empty) ? "Última Execução do serviço: " + DateTime.Now.ToString("dd/MM/yyyy HH:mm:ss") + " - " : textoLog) + status + Environment.NewLine;
 
             if (!System.IO.File.Exists(caminhoArq))
                 System.IO.File.Create(caminhoArq).Dispose();

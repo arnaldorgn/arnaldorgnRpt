@@ -441,17 +441,21 @@ namespace Systax_BuscaLegal
 
                 if (listUrls.Any(x => !x.Contains(".pdf")) && listUrls.Any(x => !x.Contains(".doc")))
                 {
+                    DateTime timeSleep;
+
                     foreach (var item in listUrls)
                     {
                         var webBrowser2 = new WebBrowser();
 
                         webBrowser2.ScriptErrorsSuppressed = true;
-                        webBrowser2.Navigate(web.Url.AbsoluteUri.ToString() + item);
                         webBrowser2.DocumentCompleted += new WebBrowserDocumentCompletedEventHandler(Wb_DocumentCompleted_SefazAc);
+
+                        webBrowser2.Navigate(web.Url.AbsoluteUri.ToString() + item);
 
                         //Debug.Print("SubLink - " + web.Url.AbsoluteUri.ToString() + item);
 
-                        Thread.Sleep(2000);
+                        timeSleep = DateTime.Now.AddSeconds(2);
+                        while (timeSleep >= DateTime.Now) { }
                     }
 
                     listUrls = new List<string>();
@@ -460,6 +464,7 @@ namespace Systax_BuscaLegal
                 if (listUrls.Count > 0)
                 {
                     dynamic objUrll = new ExpandoObject();
+                    DateTime timeSleep;
 
                     objUrll.Indexacao = "Secretaria do Estado da Fazendo do Acre";
                     objUrll.Url = web.Url.AbsoluteUri.ToString();
@@ -479,12 +484,13 @@ namespace Systax_BuscaLegal
                     if (objUrll.Lista_Nivel2.Count > 0)
                         new BuscaLegalDao().AtualizarFontes(new List<dynamic>() { objUrll });
 
-                    Thread.Sleep(2000);
+                    timeSleep = DateTime.Now.AddSeconds(2);
+                    while (timeSleep >= DateTime.Now) { }
                 }
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                //Debug.Print("Error -" + web.Url.AbsoluteUri.ToString());
+                new Facilities().GravaArquivoLogTxtContinuo(string.Empty, @"c:\temp\logErroADE.txt", ex.Message);
             }
         }
 
@@ -7235,8 +7241,10 @@ namespace Systax_BuscaLegal
 
             #region "Captura URL's"
 
-            if (modoProcessamento.Equals("f") || modoProcessamento.Equals("u"))
+            if (modoProcessamento.Equals("f") || modoProcessamento.Equals("u1"))
             {
+
+                this.Text = "Sef. Acre - URLS";
 
                 linksSefazAc = new List<string>() { "http://www.sefaz.ac.gov.br/wps/portal/sefaz/sefaz/principal/!ut/p/c5/7ZLPboJAEMafxRdgd1kWliO2q_xxwVUWkQtB0xBQxKSNxH36LunB9FCbtKanzlwmmfnmN8l8oAA6T9Wlqau3pj9VR5CDwi6XfiDW0ieIyhWGwTJLnqM5wVRg3d_aJfwiPPiNegNyaJXr9noO1EGtWiWG1OEwVnzg7IB4yq68rTBnJEmlpetpxGWtXpUH4d5F2UwwLxayKvvJLy_5V_9EHYKiPvY77ZPN6Jw7s-ijf4cU-333AragcG5bEs4oDAhm2WwqkK5A-kDHfGbRhWNqQgAxD6Fpzp2_Y1HroSz9lWbXGcO-M6BBHYyJZbrQtV3bNinIn8C5k5dojAUJ_QHRMQdvMnkHWY3K_w!!/dl3/d3/L2dBISEvZ0FBIS9nQSEh/?1dmy&current=true&urile=wcm%3apath%3a/SefazServ/Portal+SefazServ/Principal/Servicos/Legislacao/Legislacao+Estadual+repo/Leis+Ordinarias/"
                                                    ,"http://www.sefaz.ac.gov.br/wps/portal/sefaz/sefaz/principal/!ut/p/c5/7ZLPboJAEMafxRdgd1kWliO2q_xxwVUWkQtB0xBQxKSNxH36LunB9FCbtKanzlwmmfnmN8l8oAA6T9Wlqau3pj9VR5CDwi6XfiDW0ieIyhWGwTJLnqM5wVRg3d_aJfwiPPiNegNyaJXr9noO1EGtWiWG1OEwVnzg7IB4yq68rTBnJEmlpetpxGWtXpUH4d5F2UwwLxayKvvJLy_5V_9EHYKiPvY77ZPN6Jw7s-ijf4cU-333AragcG5bEs4oDAhm2WwqkK5A-kDHfGbRhWNqQgAxD6Fpzp2_Y1HroSz9lWbXGcO-M6BBHYyJZbrQtV3bNinIn8C5k5dojAUJ_QHRMQdvMnkHWY3K_w!!/dl3/d3/L2dBISEvZ0FBIS9nQSEh/?1dmy&current=true&urile=wcm%3apath%3a/SefazServ/Portal+SefazServ/Principal/Servicos/Legislacao/Legislacao+Estadual+repo/Leis+Complementares/"
@@ -7264,10 +7272,20 @@ namespace Systax_BuscaLegal
 
             if ((modoProcessamento.Equals("f") || modoProcessamento.Equals("d")) && siglaFonteProcessamento.Equals("sefazAc"))
             {
+                this.Text = "Sef. Acre - DOCS";
+
                 if (listaUrl.Count == 0)
                     listaUrl = new BuscaLegalDao().ObterUrlsParaProcessamento("sefazAc");
 
                 string urlTratada = string.Empty;
+
+                string dadosPdf = string.Empty;
+                string numero = string.Empty;
+                string especie = string.Empty;
+                string titulo = string.Empty;
+                string publicacao = string.Empty;
+                string edicao = string.Empty;
+                string ementa = string.Empty;
 
                 foreach (var nivel1_item in listaUrl)
                 {
@@ -7280,6 +7298,8 @@ namespace Systax_BuscaLegal
                             dynamic itemListaVez = new ExpandoObject();
                             dynamic ementaInserir = new ExpandoObject();
 
+                            Facilities facilities = new Facilities();
+
                             ementaInserir.ListaArquivos = new List<ArquivoUpload>();
 
                             itemListaVez.ListaEmenta = new List<dynamic>();
@@ -7287,34 +7307,29 @@ namespace Systax_BuscaLegal
                             itemListaVez.Url = urlTratada;
                             itemListaVez.IdUrl = itemLista_Nivel2.IdUrl;
 
-                            string dadosPdf = string.Empty;
-                            string numero = string.Empty;
-                            string especie = string.Empty;
-                            string titulo = string.Empty;
-                            string publicacao = string.Empty;
-                            string edicao = string.Empty;
-                            string ementa = string.Empty;
+                            dadosPdf = string.Empty;
+                            numero = string.Empty;
+                            especie = string.Empty;
+                            titulo = string.Empty;
+                            publicacao = string.Empty;
+                            edicao = string.Empty;
+                            ementa = string.Empty;
 
-                            string nomeArq = urlTratada.Substring(urlTratada.LastIndexOf("/") + 1);
+                            string nomeArq = urlTratada.Split('|')[0].Substring(urlTratada.Split('|')[0].LastIndexOf("/") + 1);
 
                             nomeArq = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory.ToString(), Regex.Replace(nomeArq, "[^0-9a-zA-Z]+", string.Empty) + ".pdf");
 
                             using (WebClient webclient = new WebClient())
                             {
-                                webclient.DownloadFile(urlTratada, nomeArq);
+                                webclient.DownloadFile(urlTratada.Split('|')[0], nomeArq);
                             }
 
-                            dadosPdf = new Facilities().LeArquivo(nomeArq);
+                            dadosPdf = facilities.LeArquivo(nomeArq);
 
-                            var listDados = Regex.Split(dadosPdf, "\n").ToList();
+                            titulo = urlTratada.Split('|').Length == 5 ? urlTratada.Split('|')[2] : urlTratada.Split('|')[1];
+                            publicacao = urlTratada.Split('|').Length == 5 ? urlTratada.Split('|')[4] : string.Empty;
 
-                            listDados.RemoveAll(x => x.Trim().Equals(string.Empty) || x.Contains("ESTADO DO"));
-
-                            titulo = listDados[0];
-                            publicacao = listDados.Find(x => x.Contains("Publicad"));
-
-                            titulo.ToList().ForEach(delegate(char x) { numero += char.IsNumber(x) && (numero.Equals(string.Empty) || !numero.Contains(".")) ? x.ToString() : numero.Equals(string.Empty) ? string.Empty : "."; });
-                            especie = titulo.Substring(0, new Facilities().obterPontoCorte(titulo)).Trim();
+                            especie = "";
 
                             File.Delete(nomeArq);
 
@@ -7339,11 +7354,10 @@ namespace Systax_BuscaLegal
                             ementaInserir.NumeroAto = Regex.Replace(numero, "[^0-9]+", string.Empty);
                             ementaInserir.DataEdicao = edicao;
                             ementaInserir.Texto = dadosPdf;
-                            ementaInserir.Hash = new Facilities().GerarHash(new Facilities().removerCaracterEspecial(dadosPdf));
+                            ementaInserir.Hash = facilities.GerarHash(facilities.removerCaracterEspecial(dadosPdf));
                             ementaInserir.IdFila = itemLista_Nivel2.Id;
 
                             ementaInserir.Escopo = "AC";
-                            ementaInserir.IdFila = itemLista_Nivel2.Id;
 
                             itemListaVez.ListaEmenta.Add(ementaInserir);
 
